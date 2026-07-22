@@ -14,8 +14,136 @@ document.addEventListener("DOMContentLoaded", () => {
   const productsTableBody = document.getElementById("productsTableBody");
   const btnDownloadXml = document.getElementById("btnDownloadXml");
 
+  // Recipient Modal Elements
+  const btnOpenModal = document.getElementById("btnOpenModal");
+  const btnCloseModal = document.getElementById("btnCloseModal");
+  const btnCancelModal = document.getElementById("btnCancelModal");
+  const btnResetDefault = document.getElementById("btnResetDefault");
+  const recipientModal = document.getElementById("recipientModal");
+  const recipientForm = document.getElementById("recipientForm");
+  const destBadgeName = document.getElementById("destBadgeName");
+
+  const fields = {
+    cnpj: document.getElementById("recipientCnpj"),
+    name: document.getElementById("recipientName"),
+    ie: document.getElementById("recipientIe"),
+    phone: document.getElementById("recipientPhone"),
+    street: document.getElementById("recipientStreet"),
+    number: document.getElementById("recipientNumber"),
+    complement: document.getElementById("recipientComplement"),
+    bairro: document.getElementById("recipientBairro"),
+    cityName: document.getElementById("recipientCityName"),
+    uf: document.getElementById("recipientUf"),
+    cep: document.getElementById("recipientCep")
+  };
+
   let currentFile = null;
   let parsedProducts = [];
+
+  // Load custom recipient configuration from localStorage
+  const STORAGE_KEY = "arboretho_transfer_recipient";
+
+  function getStoredRecipient() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveStoredRecipient(recipient) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(recipient));
+    } catch (e) {
+      console.warn("Storage error:", e);
+    }
+  }
+
+  function clearStoredRecipient() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+      console.warn("Storage error:", e);
+    }
+  }
+
+  function updateBadgeUI() {
+    const recipient = getStoredRecipient();
+    if (recipient && recipient.name) {
+      destBadgeName.textContent = recipient.name;
+    } else {
+      destBadgeName.textContent = "ARBORETHO IMPORTS LTDA (Padrão)";
+    }
+  }
+
+  function fillFormWithStored() {
+    const recipient = getStoredRecipient() || {};
+    fields.cnpj.value = recipient.cnpj || "";
+    fields.name.value = recipient.name || "";
+    fields.ie.value = recipient.ie || "";
+    fields.phone.value = recipient.phone || "";
+    fields.street.value = recipient.street || "";
+    fields.number.value = recipient.number || "";
+    fields.complement.value = recipient.complement || "";
+    fields.bairro.value = recipient.bairro || "";
+    fields.cityName.value = recipient.cityName || "";
+    fields.uf.value = recipient.uf || "";
+    fields.cep.value = recipient.cep || "";
+  }
+
+  // Modal Handlers
+  btnOpenModal.addEventListener("click", () => {
+    fillFormWithStored();
+    recipientModal.classList.remove("hidden");
+  });
+
+  function closeModal() {
+    recipientModal.classList.add("hidden");
+  }
+
+  btnCloseModal.addEventListener("click", closeModal);
+  btnCancelModal.addEventListener("click", closeModal);
+
+  recipientModal.addEventListener("click", (e) => {
+    if (e.target === recipientModal) closeModal();
+  });
+
+  btnResetDefault.addEventListener("click", () => {
+    clearStoredRecipient();
+    updateBadgeUI();
+    fillFormWithStored();
+    showAlert("Configuração da destinatária restaurada para o padrão (Mesma Empresa).", "success");
+    closeModal();
+  });
+
+  recipientForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const recipientData = {
+      cnpj: fields.cnpj.value.trim(),
+      name: fields.name.value.trim(),
+      ie: fields.ie.value.trim(),
+      phone: fields.phone.value.trim(),
+      street: fields.street.value.trim(),
+      number: fields.number.value.trim(),
+      complement: fields.complement.value.trim(),
+      bairro: fields.bairro.value.trim(),
+      cityName: fields.cityName.value.trim(),
+      uf: fields.uf.value.trim(),
+      cep: fields.cep.value.trim()
+    };
+
+    if (!recipientData.cnpj || !recipientData.name) {
+      alert("Por favor, preencha o CNPJ e a Razão Social da empresa destinatária.");
+      return;
+    }
+
+    saveStoredRecipient(recipientData);
+    updateBadgeUI();
+    showAlert(`Empresa destinatária '${recipientData.name}' cadastrada com sucesso!`, "success");
+    closeModal();
+  });
 
   // Drag and Drop listeners
   dropZone.addEventListener("click", () => fileInput.click());
@@ -90,7 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
       btnDownloadXml.disabled = false;
 
       renderTable(parsedProducts);
-      showAlert(`Relatório '${data.filename}' analisado com sucesso! 72 itens importados.`, "success");
+      showAlert(`Relatório '${data.filename}' analisado com sucesso! ${data.summary.item_count} itens importados.`, "success");
 
     } catch (err) {
       showAlert(`Erro: ${err.message}`, "danger");
@@ -120,7 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Filter Table Products
   searchInput.addEventListener("input", (e) => {
-    const term = e.target.value.toLowerCase().strip ? e.target.value.toLowerCase().strip() : e.target.value.toLowerCase();
+    const term = e.target.value.toLowerCase().trim();
     const filtered = parsedProducts.filter(p => 
       p.code.toLowerCase().includes(term) || p.description.toLowerCase().includes(term)
     );
@@ -137,6 +265,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const formData = new FormData();
       formData.append("file", currentFile);
+
+      // Append custom recipient if configured
+      const recipient = getStoredRecipient();
+      if (recipient && recipient.cnpj && recipient.name) {
+        formData.append("recipient_cnpj", recipient.cnpj);
+        formData.append("recipient_name", recipient.name);
+        if (recipient.ie) formData.append("recipient_ie", recipient.ie);
+        if (recipient.phone) formData.append("recipient_phone", recipient.phone);
+        if (recipient.street) formData.append("recipient_street", recipient.street);
+        if (recipient.number) formData.append("recipient_number", recipient.number);
+        if (recipient.complement) formData.append("recipient_complement", recipient.complement);
+        if (recipient.bairro) formData.append("recipient_bairro", recipient.bairro);
+        if (recipient.cityName) formData.append("recipient_city_name", recipient.cityName);
+        if (recipient.uf) formData.append("recipient_uf", recipient.uf);
+        if (recipient.cep) formData.append("recipient_cep", recipient.cep);
+      }
 
       const res = await fetch("/api/generate-xml", {
         method: "POST",
@@ -171,4 +315,7 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
     }
   });
+
+  // Initialize Badge State
+  updateBadgeUI();
 });

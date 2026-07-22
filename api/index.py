@@ -1,12 +1,14 @@
 """
 Flask application API for Vercel Serverless Functions and local dev server.
-Enforces security limits, CORS/security headers, and clean error handling.
+Enforces security limits, CORS/security headers, custom recipient info, and clean error handling.
 """
 import os
+import re
 from flask import Flask, request, jsonify, Response, send_from_directory
 from core.services.xls_parser import XLSParser
 from core.services.nfe_generator import NFeGenerator
 from core.services.document_validator import ValidationError
+from core.domain.nfe import CompanyInfo, AddressInfo, DEFAULT_RECIPIENT, DEFAULT_EMITTER
 
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
@@ -21,6 +23,39 @@ def add_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     return response
+
+def extract_recipient_from_request(form_data) -> CompanyInfo:
+    """Extracts custom recipient company details from form parameters if provided."""
+    cnpj_raw = form_data.get("recipient_cnpj", "").strip()
+    name_raw = form_data.get("recipient_name", "").strip()
+
+    if not cnpj_raw or not name_raw:
+        return DEFAULT_RECIPIENT
+
+    cnpj_clean = re.sub(r"\D", "", cnpj_raw)
+    ie_clean = re.sub(r"\D", "", form_data.get("recipient_ie", "")) or DEFAULT_RECIPIENT.ie
+    cep_clean = re.sub(r"\D", "", form_data.get("recipient_cep", "")) or DEFAULT_RECIPIENT.address.cep
+    phone_clean = re.sub(r"\D", "", form_data.get("recipient_phone", "")) or DEFAULT_RECIPIENT.address.phone
+
+    address = AddressInfo(
+        street=form_data.get("recipient_street", "").strip().upper() or DEFAULT_RECIPIENT.address.street,
+        number=form_data.get("recipient_number", "").strip() or DEFAULT_RECIPIENT.address.number,
+        complement=form_data.get("recipient_complement", "").strip().upper() or DEFAULT_RECIPIENT.address.complement,
+        neighborhood=form_data.get("recipient_bairro", "").strip().upper() or DEFAULT_RECIPIENT.address.neighborhood,
+        city_code=form_data.get("recipient_city_code", "").strip() or DEFAULT_RECIPIENT.address.city_code,
+        city_name=form_data.get("recipient_city_name", "").strip() or DEFAULT_RECIPIENT.address.city_name,
+        uf=form_data.get("recipient_uf", "").strip().upper() or DEFAULT_RECIPIENT.address.uf,
+        cep=cep_clean,
+        phone=phone_clean
+    )
+
+    return CompanyInfo(
+        cnpj=cnpj_clean,
+        name=name_raw.upper(),
+        trade_name=form_data.get("recipient_trade_name", name_raw).strip().upper(),
+        ie=ie_clean,
+        address=address
+    )
 
 @app.route("/")
 def index():
@@ -90,7 +125,11 @@ def generate_xml_endpoint():
     try:
         file_bytes = file.read()
         report = XLSParser.parse(file_bytes, file.filename or "relatorio.xls")
-        xml_content = NFeGenerator.generate_xml(report)
+        
+        # Extract optional custom recipient from request form
+        recipient = extract_recipient_from_request(request.form)
+
+        xml_content = NFeGenerator.generate_xml(report, recipient=recipient)
 
         return Response(
             xml_content,

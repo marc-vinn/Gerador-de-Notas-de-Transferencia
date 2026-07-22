@@ -15,10 +15,14 @@
         <h1>Transferência entre Filiais</h1>
         <p>Geração Segura de DANFE XML a partir do Relatório de Vendas Semanal</p>
       </div>
-      <div class="company-badge">
-        <span>Empresa:</span>
-        <strong>ARBORETHO IMPORTS LTDA</strong>
-        <span>(CNPJ: 40.484.774/0001-50)</span>
+      <div class="header-actions">
+        <div class="company-badge" id="destBadge">
+          <span>Destinatária:</span>
+          <strong id="destBadgeName">ARBORETHO IMPORTS LTDA</strong>
+        </div>
+        <button id="btnOpenModal" class="btn-secondary">
+          🏢 Configurar Destinatária
+        </button>
       </div>
     </header>
 
@@ -88,6 +92,82 @@
       </div>
     </section>
 
+  </div>
+
+  <!-- Modal Cadastro da Empresa Destinatária -->
+  <div id="recipientModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Cadastro da Empresa Destinatária</h2>
+        <button id="btnCloseModal" class="modal-close-btn">&times;</button>
+      </div>
+      <p class="modal-subtitle">Defina os dados da filial/empresa destinatária que receberá as mercadorias no XML da DANFE.</p>
+      
+      <form id="recipientForm" class="form-grid">
+        <div class="form-group col-6">
+          <label>CNPJ Destinatária *</label>
+          <input type="text" id="recipientCnpj" placeholder="40.484.774/0001-50" required>
+        </div>
+
+        <div class="form-group col-6">
+          <label>Razão Social / Nome *</label>
+          <input type="text" id="recipientName" placeholder="ARBORETHO IMPORTS LTDA" required>
+        </div>
+
+        <div class="form-group col-6">
+          <label>Inscrição Estadual (IE)</label>
+          <input type="text" id="recipientIe" placeholder="108282910">
+        </div>
+
+        <div class="form-group col-6">
+          <label>Telefone de Contato</label>
+          <input type="text" id="recipientPhone" placeholder="62992544599">
+        </div>
+
+        <div class="form-group col-8">
+          <label>Logradouro / Rua</label>
+          <input type="text" id="recipientStreet" placeholder="RUA 19">
+        </div>
+
+        <div class="form-group col-4">
+          <label>Número</label>
+          <input type="text" id="recipientNumber" placeholder="230">
+        </div>
+
+        <div class="form-group col-6">
+          <label>Complemento</label>
+          <input type="text" id="recipientComplement" placeholder="QUADRA 46, LOTE 08-A">
+        </div>
+
+        <div class="form-group col-6">
+          <label>Bairro</label>
+          <input type="text" id="recipientBairro" placeholder="SETOR SANTO ANTONIO">
+        </div>
+
+        <div class="form-group col-5">
+          <label>Município</label>
+          <input type="text" id="recipientCityName" placeholder="Goiania">
+        </div>
+
+        <div class="form-group col-3">
+          <label>UF (Estado)</label>
+          <input type="text" id="recipientUf" placeholder="GO" maxlength="2">
+        </div>
+
+        <div class="form-group col-4">
+          <label>CEP</label>
+          <input type="text" id="recipientCep" placeholder="74853320">
+        </div>
+
+        <div class="modal-actions col-12">
+          <button type="button" id="btnResetDefault" class="btn-outline-danger">Restaurar Padrão (Mesma Empresa)</button>
+          <div style="display: flex; gap: 0.75rem;">
+            <button type="button" id="btnCancelModal" class="btn-outline">Cancelar</button>
+            <button type="submit" class="btn-primary">Salvar Dados da Destinatária</button>
+          </div>
+        </div>
+      </form>
+    </div>
   </div>
 
   <script src="app.js"></script>
