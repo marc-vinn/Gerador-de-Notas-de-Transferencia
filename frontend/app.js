@@ -23,6 +23,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const recipientForm = document.getElementById("recipientForm");
   const destBadgeName = document.getElementById("destBadgeName");
 
+  const btnSearchCnpj = document.getElementById("btnSearchCnpj");
+  const btnSearchCep = document.getElementById("btnSearchCep");
+  const modalApiStatus = document.getElementById("modalApiStatus");
+
   const fields = {
     cnpj: document.getElementById("recipientCnpj"),
     name: document.getElementById("recipientName"),
@@ -34,13 +38,13 @@ document.addEventListener("DOMContentLoaded", () => {
     bairro: document.getElementById("recipientBairro"),
     cityName: document.getElementById("recipientCityName"),
     uf: document.getElementById("recipientUf"),
-    cep: document.getElementById("recipientCep")
+    cep: document.getElementById("recipientCep"),
+    cityCode: document.getElementById("recipientCityCode")
   };
 
   let currentFile = null;
   let parsedProducts = [];
 
-  // Load custom recipient configuration from localStorage
   const STORAGE_KEY = "arboretho_transfer_recipient";
 
   function getStoredRecipient() {
@@ -73,7 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (recipient && recipient.name) {
       destBadgeName.textContent = recipient.name;
     } else {
-      destBadgeName.textContent = "ARBORETHO IMPORTS LTDA (Padrão)";
+      destBadgeName.textContent = "Não configurada (Clique para cadastrar)";
     }
   }
 
@@ -90,10 +94,142 @@ document.addEventListener("DOMContentLoaded", () => {
     fields.cityName.value = recipient.cityName || "";
     fields.uf.value = recipient.uf || "";
     fields.cep.value = recipient.cep || "";
+    fields.cityCode.value = recipient.cityCode || "";
   }
 
-  // Modal Handlers
+  function setModalStatus(message, type = "info") {
+    if (!message) {
+      modalApiStatus.classList.add("hidden");
+      return;
+    }
+    modalApiStatus.textContent = message;
+    modalApiStatus.className = `modal-status ${type}`;
+    modalApiStatus.classList.remove("hidden");
+  }
+
+  // --- API CNPJ Lookup ---
+  async function fetchCnpj(cnpjRaw) {
+    const cleanCnpj = cnpjRaw.replace(/\D/g, "");
+    if (cleanCnpj.length !== 14) {
+      setModalStatus("Digite um CNPJ válido com 14 dígitos.", "error");
+      return;
+    }
+
+    setModalStatus("🔍 Consultando dados da empresa na Receita Federal...", "info");
+    btnSearchCnpj.disabled = true;
+
+    try {
+      let data = null;
+
+      // Primary API: BrasilAPI
+      try {
+        const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+        if (res.ok) {
+          data = await res.json();
+        }
+      } catch (e) {
+        console.warn("BrasilAPI failed, trying fallback...", e);
+      }
+
+      // Fallback API: MinhaReceita
+      if (!data) {
+        const res2 = await fetch(`https://minhareceita.org/${cleanCnpj}`);
+        if (res2.ok) {
+          data = await res2.json();
+        }
+      }
+
+      if (!data) {
+        throw new Error("Não foi possível localizar o CNPJ informado.");
+      }
+
+      // Populate form fields
+      fields.name.value = data.razao_social || data.nome_fantasia || "";
+      fields.street.value = data.logradouro || "";
+      fields.number.value = data.numero || "";
+      fields.complement.value = data.complemento || "";
+      fields.bairro.value = data.bairro || "";
+      fields.cityName.value = data.municipio || "";
+      fields.uf.value = data.uf || "";
+
+      if (data.ddd_telefone_1) {
+        fields.phone.value = data.ddd_telefone_1;
+      } else if (data.telefone) {
+        fields.phone.value = data.telefone;
+      }
+
+      if (data.cep) {
+        const cleanCep = String(data.cep).replace(/\D/g, "");
+        fields.cep.value = cleanCep;
+        // Trigger ViaCEP for IBGE code
+        await fetchCep(cleanCep, false);
+      }
+
+      setModalStatus(`✅ Empresa '${fields.name.value}' localizada com sucesso!`, "info");
+
+    } catch (err) {
+      setModalStatus(`Erro ao buscar CNPJ: ${err.message}`, "error");
+    } finally {
+      btnSearchCnpj.disabled = false;
+    }
+  }
+
+  // --- API CEP Lookup (ViaCEP) ---
+  async function fetchCep(cepRaw, showStatus = true) {
+    const cleanCep = cepRaw.replace(/\D/g, "");
+    if (cleanCep.length !== 8) {
+      if (showStatus) setModalStatus("Digite um CEP válido com 8 dígitos.", "error");
+      return;
+    }
+
+    if (showStatus) setModalStatus("🔍 Consultando endereço no ViaCEP...", "info");
+    btnSearchCep.disabled = true;
+
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await res.json();
+
+      if (data.erro) {
+        throw new Error("CEP não encontrado.");
+      }
+
+      if (data.logradouro) fields.street.value = data.logradouro;
+      if (data.bairro) fields.bairro.value = data.bairro;
+      if (data.localidade) fields.cityName.value = data.localidade;
+      if (data.uf) fields.uf.value = data.uf;
+      if (data.ibge) fields.cityCode.value = data.ibge;
+
+      if (showStatus) setModalStatus(`✅ Endereço '${data.logradouro || data.localidade}' carregado pelo CEP!`, "info");
+
+    } catch (err) {
+      if (showStatus) setModalStatus(`Erro ao buscar CEP: ${err.message}`, "error");
+    } finally {
+      btnSearchCep.disabled = false;
+    }
+  }
+
+  // Auto-search on CNPJ & CEP button clicks
+  btnSearchCnpj.addEventListener("click", () => fetchCnpj(fields.cnpj.value));
+  btnSearchCep.addEventListener("click", () => fetchCep(fields.cep.value));
+
+  // Auto-search on 14 digits typed in CNPJ or 8 digits in CEP
+  fields.cnpj.addEventListener("blur", () => {
+    const clean = fields.cnpj.value.replace(/\D/g, "");
+    if (clean.length === 14 && !fields.name.value) {
+      fetchCnpj(clean);
+    }
+  });
+
+  fields.cep.addEventListener("blur", () => {
+    const clean = fields.cep.value.replace(/\D/g, "");
+    if (clean.length === 8) {
+      fetchCep(clean, false);
+    }
+  });
+
+  // Modal Open/Close Handlers
   btnOpenModal.addEventListener("click", () => {
+    setModalStatus("");
     fillFormWithStored();
     recipientModal.classList.remove("hidden");
   });
@@ -113,7 +249,8 @@ document.addEventListener("DOMContentLoaded", () => {
     clearStoredRecipient();
     updateBadgeUI();
     fillFormWithStored();
-    showAlert("Configuração da destinatária restaurada para o padrão (Mesma Empresa).", "success");
+    setModalStatus("");
+    showAlert("Cadastro da destinatária limpo.", "success");
     closeModal();
   });
 
@@ -131,7 +268,8 @@ document.addEventListener("DOMContentLoaded", () => {
       bairro: fields.bairro.value.trim(),
       cityName: fields.cityName.value.trim(),
       uf: fields.uf.value.trim(),
-      cep: fields.cep.value.trim()
+      cep: fields.cep.value.trim(),
+      cityCode: fields.cityCode.value.trim()
     };
 
     if (!recipientData.cnpj || !recipientData.name) {
@@ -280,6 +418,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (recipient.cityName) formData.append("recipient_city_name", recipient.cityName);
         if (recipient.uf) formData.append("recipient_uf", recipient.uf);
         if (recipient.cep) formData.append("recipient_cep", recipient.cep);
+        if (recipient.cityCode) formData.append("recipient_city_code", recipient.cityCode);
       }
 
       const res = await fetch("/api/generate-xml", {

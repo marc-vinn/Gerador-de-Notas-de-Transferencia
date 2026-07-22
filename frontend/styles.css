@@ -103,10 +103,10 @@ body {
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--panel-border);
-  color: #e2e8f0;
-  padding: 0.6rem 1.25rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(6, 182, 212, 0.2) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: #ffffff;
+  padding: 0.65rem 1.35rem;
   border-radius: 9999px;
   font-size: 0.85rem;
   font-weight: 600;
@@ -115,9 +115,8 @@ body {
 }
 
 .btn-secondary:hover {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: var(--primary);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  box-shadow: 0 0 20px var(--accent-glow);
 }
 
 /* Upload Section */
@@ -362,7 +361,7 @@ tr:hover td {
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-lg);
   width: 100%;
-  max-width: 720px;
+  max-width: 760px;
   max-height: 90vh;
   overflow-y: auto;
   padding: 2rem;
@@ -404,6 +403,27 @@ tr:hover td {
   margin-top: -0.5rem;
 }
 
+.modal-status {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+}
+
+.modal-status.info {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: #7dd3fc;
+}
+
+.modal-status.error {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
 /* Form Grid System */
 .form-grid {
   display: grid;
@@ -419,10 +439,12 @@ tr:hover td {
 
 .col-12 { grid-column: span 12; }
 .col-8  { grid-column: span 8; }
+.col-7  { grid-column: span 7; }
 .col-6  { grid-column: span 6; }
 .col-5  { grid-column: span 5; }
 .col-4  { grid-column: span 4; }
 .col-3  { grid-column: span 3; }
+.col-2  { grid-column: span 2; }
 
 .form-group label {
   font-size: 0.8rem;
@@ -441,11 +463,35 @@ tr:hover td {
   font-size: 0.9rem;
   outline: none;
   transition: var(--transition);
+  width: 100%;
 }
 
 .form-group input:focus {
   border-color: var(--primary);
   box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+}
+
+.input-with-btn {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-input-action {
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: #c7d2fe;
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition);
+}
+
+.btn-input-action:hover {
+  background: var(--primary);
+  color: #ffffff;
 }
 
 .modal-actions {
