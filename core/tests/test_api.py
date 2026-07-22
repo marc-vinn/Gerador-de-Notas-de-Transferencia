@@ -1,7 +1,8 @@
 import io
+import os
 import pytest
 from api.index import app
-from core.tests.test_parser import SAMPLE_FILE_PATH
+from core.tests.test_parser import FIXTURE_FILE_PATH
 
 @pytest.fixture
 def client():
@@ -14,7 +15,7 @@ def test_api_index_route(client):
     assert rv.status_code in [200, 404]
 
 def test_api_upload_endpoint(client):
-    with open(SAMPLE_FILE_PATH, "rb") as f:
+    with open(FIXTURE_FILE_PATH, "rb") as f:
         file_bytes = f.read()
 
     data = {
@@ -28,7 +29,7 @@ def test_api_upload_endpoint(client):
     assert len(res_json["products"]) == 72
 
 def test_api_generate_xml_endpoint(client):
-    with open(SAMPLE_FILE_PATH, "rb") as f:
+    with open(FIXTURE_FILE_PATH, "rb") as f:
         file_bytes = f.read()
 
     data = {
