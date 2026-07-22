@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Transferência entre Filiais | Arboretho Imports</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    
+    <!-- Top Header -->
+    <header class="header">
+      <div class="header-brand">
+        <h1>Transferência entre Filiais</h1>
+        <p>Geração Segura de DANFE XML a partir do Relatório de Vendas Semanal</p>
+      </div>
+      <div class="company-badge">
+        <span>Empresa:</span>
+        <strong>ARBORETHO IMPORTS LTDA</strong>
+        <span>(CNPJ: 40.484.774/0001-50)</span>
+      </div>
+    </header>
+
+    <!-- Alert Message Area -->
+    <div id="alertBox" class="alert hidden"></div>
+
+    <!-- Upload Card -->
+    <section class="upload-card" id="dropZone">
+      <input type="file" id="fileInput" accept=".xls,.xlsx">
+      <div class="upload-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+        </svg>
+      </div>
+      <h2 class="upload-title">Selecione ou Arraste o Relatório de Vendas (.XLS)</h2>
+      <p class="upload-subtitle">Envie a planilha semanal emitida pela filial para analisar os produtos e gerar o XML da DANFE</p>
+    </section>
+
+    <!-- Metrics Dashboard (Shown after upload) -->
+    <section id="metricsGrid" class="metrics-grid hidden">
+      <div class="metric-card">
+        <span class="metric-label">Arquivo Carregado</span>
+        <span class="metric-value" id="metricFilename" style="font-size: 1.25rem; font-weight: 600;">-</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Total de Itens</span>
+        <span class="metric-value" id="metricItemCount">0</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Quantidade de Peças</span>
+        <span class="metric-value" id="metricTotalQty">0</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Valor Total (R$)</span>
+        <span class="metric-value" id="metricTotalValue" style="color: #38bdf8;">R$ 0,00</span>
+      </div>
+    </section>
+
+    <!-- Products Table Section (Shown after upload) -->
+    <section id="dataSection" class="data-section hidden">
+      <div class="table-controls">
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Buscar por código SKU ou descrição...">
+        <button id="btnDownloadXml" class="btn-download">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+          </svg>
+          Baixar XML da DANFE
+        </button>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Código (SKU)</th>
+              <th>Descrição do Produto</th>
+              <th>Quantidade</th>
+              <th>Valor Unitário</th>
+              <th>Valor Total</th>
+            </tr>
+          </thead>
+          <tbody id="productsTableBody">
+            <!-- Dynamic rows inserted via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
