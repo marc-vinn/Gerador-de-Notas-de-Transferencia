@@ -43,13 +43,17 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   let currentFile = null;
+  let currentFilename = "relatorio.xls";
   let parsedProducts = [];
 
-  const STORAGE_KEY = "arboretho_transfer_recipient";
+  const RECIPIENT_STORAGE_KEY = "arboretho_transfer_recipient";
+  const PRODUCTS_STORAGE_KEY = "arboretho_transfer_products";
+  const FILENAME_STORAGE_KEY = "arboretho_transfer_filename";
 
+  // --- Recipient Storage Handlers ---
   function getStoredRecipient() {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(RECIPIENT_STORAGE_KEY);
       return stored ? JSON.parse(stored) : null;
     } catch {
       return null;
@@ -58,17 +62,53 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function saveStoredRecipient(recipient) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(recipient));
+      localStorage.setItem(RECIPIENT_STORAGE_KEY, JSON.stringify(recipient));
     } catch (e) {
-      console.warn("Storage error:", e);
+      console.warn("Recipient storage error:", e);
     }
   }
 
   function clearStoredRecipient() {
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(RECIPIENT_STORAGE_KEY);
     } catch (e) {
-      console.warn("Storage error:", e);
+      console.warn("Recipient storage error:", e);
+    }
+  }
+
+  // --- Product Cache Storage Handlers ---
+  function getStoredProducts() {
+    try {
+      const p = localStorage.getItem(PRODUCTS_STORAGE_KEY);
+      const f = localStorage.getItem(FILENAME_STORAGE_KEY);
+      if (p && f) {
+        return { filename: f, products: JSON.parse(p) };
+      }
+    } catch (e) {
+      console.warn("Product cache read error:", e);
+    }
+    return null;
+  }
+
+  function saveStoredProducts() {
+    try {
+      if (parsedProducts && parsedProducts.length > 0) {
+        localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(parsedProducts));
+        localStorage.setItem(FILENAME_STORAGE_KEY, currentFilename || "relatorio.xls");
+      } else {
+        clearStoredProducts();
+      }
+    } catch (e) {
+      console.warn("Product cache save error:", e);
+    }
+  }
+
+  function clearStoredProducts() {
+    try {
+      localStorage.removeItem(PRODUCTS_STORAGE_KEY);
+      localStorage.removeItem(FILENAME_STORAGE_KEY);
+    } catch (e) {
+      console.warn("Product cache clear error:", e);
     }
   }
 
@@ -121,7 +161,6 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       let data = null;
 
-      // Primary API: BrasilAPI
       try {
         const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
         if (res.ok) {
@@ -131,7 +170,6 @@ document.addEventListener("DOMContentLoaded", () => {
         console.warn("BrasilAPI failed, trying fallback...", e);
       }
 
-      // Fallback API: MinhaReceita
       if (!data) {
         const res2 = await fetch(`https://minhareceita.org/${cleanCnpj}`);
         if (res2.ok) {
@@ -143,7 +181,6 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error("Não foi possível localizar o CNPJ informado.");
       }
 
-      // Populate form fields
       fields.name.value = data.razao_social || data.nome_fantasia || "";
       fields.street.value = data.logradouro || "";
       fields.number.value = data.numero || "";
@@ -161,7 +198,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (data.cep) {
         const cleanCep = String(data.cep).replace(/\D/g, "");
         fields.cep.value = cleanCep;
-        // Trigger ViaCEP for IBGE code
         await fetchCep(cleanCep, false);
       }
 
@@ -212,7 +248,6 @@ document.addEventListener("DOMContentLoaded", () => {
   btnSearchCnpj.addEventListener("click", () => fetchCnpj(fields.cnpj.value));
   btnSearchCep.addEventListener("click", () => fetchCep(fields.cep.value));
 
-  // Auto-search on 14 digits typed in CNPJ or 8 digits in CEP
   fields.cnpj.addEventListener("blur", () => {
     const clean = fields.cnpj.value.replace(/\D/g, "");
     if (clean.length === 14 && !fields.name.value) {
@@ -320,9 +355,35 @@ document.addEventListener("DOMContentLoaded", () => {
     alertBox.classList.add("hidden");
   }
 
+  // --- Recalculate Dashboard Summary Metrics ---
+  function updateMetrics() {
+    const itemCount = parsedProducts.length;
+    const totalQty = parsedProducts.reduce((sum, p) => sum + (parseFloat(p.quantity) || 0), 0);
+    const totalValue = parsedProducts.reduce((sum, p) => sum + (parseFloat(p.total_price) || 0), 0);
+
+    metricFilename.textContent = currentFilename || "-";
+    metricItemCount.textContent = itemCount;
+    metricTotalQty.textContent = totalQty.toLocaleString("pt-BR", { maximumFractionDigits: 4 });
+    metricTotalValue.textContent = totalValue.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL"
+    });
+
+    if (itemCount === 0) {
+      btnDownloadXml.disabled = true;
+      showAlert("Nenhum produto restante para exportar na DANFE.", "danger");
+    } else {
+      btnDownloadXml.disabled = false;
+    }
+  }
+
+  // --- Handle New File Upload ---
   async function handleFile(file) {
     hideAlert();
     currentFile = file;
+
+    // Reset product cache for the new file (preserving recipient settings)
+    clearStoredProducts();
 
     const formData = new FormData();
     formData.append("file", file);
@@ -341,20 +402,15 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       parsedProducts = data.products;
+      currentFilename = data.filename;
 
-      // Update Dashboard Metrics
-      metricFilename.textContent = data.filename;
-      metricItemCount.textContent = data.summary.item_count;
-      metricTotalQty.textContent = data.summary.total_quantity.toLocaleString("pt-BR");
-      metricTotalValue.textContent = data.summary.total_value.toLocaleString("pt-BR", {
-        style: "currency",
-        currency: "BRL"
-      });
+      // Auto-save new products into cache
+      saveStoredProducts();
 
       metricsGrid.classList.remove("hidden");
       dataSection.classList.remove("hidden");
-      btnDownloadXml.disabled = false;
 
+      updateMetrics();
       renderTable(parsedProducts);
       showAlert(`Relatório '${data.filename}' analisado com sucesso! ${data.summary.item_count} itens importados.`, "success");
 
@@ -365,24 +421,94 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // --- Render Products Table with Editable Fields & Delete Action ---
   function renderTable(products) {
     productsTableBody.innerHTML = "";
 
     products.forEach((p, idx) => {
+      const originalIdx = parsedProducts.indexOf(p);
       const tr = document.createElement("tr");
 
       tr.innerHTML = `
         <td style="color: var(--text-muted); font-size: 0.8rem;">${idx + 1}</td>
         <td><span class="badge-sku">${p.code}</span></td>
         <td style="font-weight: 500;">${p.description}</td>
-        <td style="font-weight: 600; color: #a5b4fc;">${p.quantity}</td>
-        <td>${p.unit_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
-        <td style="font-weight: 600; color: #38bdf8;">${p.total_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
+        <td>
+          <input type="number" class="input-table-edit qty-input" step="any" min="0" value="${p.quantity}" data-idx="${originalIdx}">
+        </td>
+        <td>
+          <input type="number" class="input-table-edit price-input" step="0.01" min="0" value="${p.unit_price.toFixed(2)}" data-idx="${originalIdx}">
+        </td>
+        <td class="row-total" style="font-weight: 600; color: #38bdf8;">
+          ${p.total_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </td>
+        <td style="text-align: center;">
+          <button type="button" class="btn-delete-row" title="Excluir produto" data-idx="${originalIdx}">🗑️</button>
+        </td>
       `;
 
       productsTableBody.appendChild(tr);
     });
   }
+
+  // --- Event Delegation for Inline Editing & Deleting Rows ---
+  productsTableBody.addEventListener("input", (e) => {
+    const target = e.target;
+    if (!target.dataset.idx) return;
+
+    const idx = parseInt(target.dataset.idx, 10);
+    if (isNaN(idx) || idx < 0 || idx >= parsedProducts.length) return;
+
+    if (target.classList.contains("qty-input")) {
+      let val = parseFloat(target.value);
+      if (isNaN(val) || val < 0) val = 0;
+      parsedProducts[idx].quantity = val;
+      parsedProducts[idx].total_price = Math.round(val * parsedProducts[idx].unit_price * 100) / 100;
+    } else if (target.classList.contains("price-input")) {
+      let val = parseFloat(target.value);
+      if (isNaN(val) || val < 0) val = 0;
+      parsedProducts[idx].unit_price = val;
+      parsedProducts[idx].total_price = Math.round(parsedProducts[idx].quantity * val * 100) / 100;
+    }
+
+    // Update row total cell display
+    const row = target.closest("tr");
+    if (row) {
+      const totalCell = row.querySelector(".row-total");
+      if (totalCell) {
+        totalCell.textContent = parsedProducts[idx].total_price.toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL"
+        });
+      }
+    }
+
+    // Update global summary metrics & save in localStorage cache automatically
+    updateMetrics();
+    saveStoredProducts();
+  });
+
+  productsTableBody.addEventListener("click", (e) => {
+    const deleteBtn = e.target.closest(".btn-delete-row");
+    if (!deleteBtn) return;
+
+    const idx = parseInt(deleteBtn.dataset.idx, 10);
+    if (isNaN(idx) || idx < 0 || idx >= parsedProducts.length) return;
+
+    // Delete item from parsed products array
+    parsedProducts.splice(idx, 1);
+
+    // Save changes to cache & update metrics
+    saveStoredProducts();
+    updateMetrics();
+
+    // Re-render filtered or full table
+    const term = searchInput.value.toLowerCase().trim();
+    const filtered = parsedProducts.filter(p => 
+      p.code.toLowerCase().includes(term) || p.description.toLowerCase().includes(term)
+    );
+    renderTable(filtered);
+  });
 
   // Filter Table Products
   searchInput.addEventListener("input", (e) => {
@@ -395,14 +521,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Download XML Trigger
   btnDownloadXml.addEventListener("click", async () => {
-    if (!currentFile) return;
+    if (!parsedProducts || parsedProducts.length === 0) {
+      showAlert("Nenhum produto disponível para gerar XML.", "danger");
+      return;
+    }
 
     try {
       btnDownloadXml.disabled = true;
       btnDownloadXml.textContent = "Gerando XML...";
 
       const formData = new FormData();
-      formData.append("file", currentFile);
+      if (currentFile) {
+        formData.append("file", currentFile);
+      }
+      formData.append("filename", currentFilename || "relatorio.xls");
+      formData.append("products", JSON.stringify(parsedProducts));
 
       // Append custom recipient if configured
       const recipient = getStoredRecipient();
@@ -435,7 +568,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `danfe_transferencia_${currentFile.name.replace(/\.[^/.]+$/, "")}.xml`;
+      const baseName = (currentFilename || "relatorio").replace(/\.[^/.]+$/, "");
+      a.download = `danfe_transferencia_${baseName}.xml`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -457,4 +591,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize Badge State
   updateBadgeUI();
+
+  // Restore cached products if present
+  const cachedData = getStoredProducts();
+  if (cachedData && cachedData.products && cachedData.products.length > 0) {
+    currentFilename = cachedData.filename;
+    parsedProducts = cachedData.products;
+
+    metricsGrid.classList.remove("hidden");
+    dataSection.classList.remove("hidden");
+
+    updateMetrics();
+    renderTable(parsedProducts);
+    showAlert(`Edições salvas em cache restauradas automaticamente (${parsedProducts.length} itens).`, "info");
+  }
 });

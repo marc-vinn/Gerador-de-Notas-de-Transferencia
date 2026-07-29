@@ -4,11 +4,14 @@ Enforces security limits, CORS/security headers, custom recipient info, and clea
 """
 import os
 import re
+import json
 from flask import Flask, request, jsonify, Response, send_from_directory
 from core.services.xls_parser import XLSParser
 from core.services.nfe_generator import NFeGenerator
 from core.services.document_validator import ValidationError
 from core.domain.nfe import CompanyInfo, AddressInfo, DEFAULT_RECIPIENT, DEFAULT_EMITTER
+from core.domain.product import Product
+from core.domain.report import TransferReport
 
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
@@ -115,27 +118,68 @@ def upload_report():
 
 @app.route("/api/generate-xml", methods=["POST"])
 def generate_xml_endpoint():
-    if "file" not in request.files:
-        return jsonify({"success": False, "error": "Nenhum arquivo enviado."}), 400
-
-    file = request.files["file"]
-    if not file or not file.filename:
-        return jsonify({"success": False, "error": "Nome de arquivo inválido."}), 400
-
     try:
-        file_bytes = file.read()
-        report = XLSParser.parse(file_bytes, file.filename or "relatorio.xls")
+        form_data = request.form if request.form else {}
+        json_data = request.get_json(silent=True) or {}
+        merged_params = {**form_data, **json_data}
+
+        products_json = form_data.get("products") or json_data.get("products")
+        filename = form_data.get("filename") or json_data.get("filename")
         
-        # Extract optional custom recipient from request form
-        recipient = extract_recipient_from_request(request.form)
+        products = []
+        
+        if products_json:
+            if isinstance(products_json, str):
+                products_list = json.loads(products_json)
+            else:
+                products_list = products_json
+                
+            if not isinstance(products_list, list):
+                return jsonify({"success": False, "error": "Formato de produtos inválido."}), 400
+                
+            for p_dict in products_list:
+                qty = float(p_dict.get("quantity", 0))
+                u_price = float(p_dict.get("unit_price", 0))
+                tot_price = round(qty * u_price, 2)
+                
+                products.append(Product(
+                    code=str(p_dict.get("code", "")).strip(),
+                    description=str(p_dict.get("description", "")).strip(),
+                    quantity=qty,
+                    unit_price=u_price,
+                    total_price=tot_price,
+                    freight_price=float(p_dict.get("freight_price", 0.0)),
+                    ean=str(p_dict.get("ean", "SEM GTIN")),
+                    ncm=str(p_dict.get("ncm", "63023100")),
+                    cfop=str(p_dict.get("cfop", "5152")),
+                    unit=str(p_dict.get("unit", "PC"))
+                ))
+            
+            if not filename:
+                filename = "relatorio_editado.xls"
+            report = TransferReport(filename=filename, products=products)
+
+        elif "file" in request.files and request.files["file"].filename:
+            file = request.files["file"]
+            file_bytes = file.read()
+            report = XLSParser.parse(file_bytes, file.filename or "relatorio.xls")
+        else:
+            return jsonify({"success": False, "error": "Nenhum arquivo ou lista de produtos enviada."}), 400
+
+        if not report.products:
+            return jsonify({"success": False, "error": "Nenhum produto disponível para exportação na DANFE."}), 400
+
+        # Extract optional custom recipient from request form or json
+        recipient = extract_recipient_from_request(merged_params)
 
         xml_content = NFeGenerator.generate_xml(report, recipient=recipient)
 
+        clean_filename = re.sub(r"[^\w\.-]", "_", report.filename)
         return Response(
             xml_content,
             mimetype="application/xml",
             headers={
-                "Content-Disposition": f"attachment; filename=nfe_transferencia_{report.filename}.xml"
+                "Content-Disposition": f"attachment; filename=nfe_transferencia_{clean_filename}.xml"
             }
         )
 
@@ -152,3 +196,4 @@ if __name__ == "__main__":
     is_debug = os.getenv("FLASK_DEBUG", "False").lower() in ["true", "1"]
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=is_debug)
+

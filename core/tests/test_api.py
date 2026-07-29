@@ -65,3 +65,29 @@ def test_api_generate_xml_custom_recipient(client):
     assert "12345678000199" in xml_data
     assert "AV PAULISTA" in xml_data
     assert "<UF>SP</UF>" in xml_data
+
+def test_api_generate_xml_with_edited_products(client):
+    import json
+    edited_products = [
+        {
+            "code": "EDITED-001",
+            "description": "PRODUTO EDITADO TESTE",
+            "quantity": 25.0,
+            "unit_price": 49.90,
+            "total_price": 1247.50
+        }
+    ]
+    data = {
+        "products": json.dumps(edited_products),
+        "filename": "relatorio_teste.xls"
+    }
+    rv = client.post("/api/generate-xml", data=data, content_type="multipart/form-data")
+    assert rv.status_code == 200
+    assert rv.mimetype == "application/xml"
+    xml_data = rv.data.decode("utf-8")
+    assert "EDITED-001" in xml_data
+    assert "PRODUTO EDITADO TESTE" in xml_data
+    assert "<qCom>25.0000</qCom>" in xml_data
+    assert "<vUnCom>49.90</vUnCom>" in xml_data
+    assert "<vProd>1247.50</vProd>" in xml_data
+
