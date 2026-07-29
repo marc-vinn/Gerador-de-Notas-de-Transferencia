@@ -431,7 +431,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       tr.innerHTML = `
         <td style="color: var(--text-muted); font-size: 0.8rem;">${idx + 1}</td>
-        <td><span class="badge-sku">${p.code}</span></td>
+        <td>
+          <div class="sku-container">
+            <span class="badge-sku">${p.code}</span>
+            <button type="button" class="btn-copy-sku" title="Copiar SKU" data-sku="${p.code}">📋</button>
+          </div>
+        </td>
         <td style="font-weight: 500;">${p.description}</td>
         <td>
           <input type="number" class="input-table-edit qty-input" step="any" min="0" value="${p.quantity}" data-idx="${originalIdx}">
@@ -451,7 +456,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- Event Delegation for Inline Editing & Deleting Rows ---
+  // --- Event Delegation for Inline Editing, Copying SKU & Deleting Rows ---
   productsTableBody.addEventListener("input", (e) => {
     const target = e.target;
     if (!target.dataset.idx) return;
@@ -489,6 +494,27 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   productsTableBody.addEventListener("click", (e) => {
+    // Copy SKU functionality
+    const copyBtn = e.target.closest(".btn-copy-sku");
+    if (copyBtn) {
+      const sku = copyBtn.dataset.sku;
+      if (sku) {
+        navigator.clipboard.writeText(sku).then(() => {
+          const originalText = copyBtn.innerHTML;
+          copyBtn.innerHTML = "✓";
+          copyBtn.classList.add("copied");
+          setTimeout(() => {
+            copyBtn.innerHTML = originalText;
+            copyBtn.classList.remove("copied");
+          }, 1500);
+        }).catch(err => {
+          console.warn("Clipboard copy error:", err);
+        });
+      }
+      return;
+    }
+
+    // Delete row functionality
     const deleteBtn = e.target.closest(".btn-delete-row");
     if (!deleteBtn) return;
 
