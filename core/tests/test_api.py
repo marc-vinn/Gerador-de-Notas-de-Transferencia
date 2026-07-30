@@ -41,6 +41,7 @@ def test_api_generate_xml_default_recipient(client):
     xml_data = rv.data.decode("utf-8")
     assert "<nfeProc" in xml_data
     assert "ARBORETHO IMPORTS LTDA" in xml_data
+    assert "<nNF>0</nNF>" in xml_data
 
 def test_api_generate_xml_custom_recipient(client):
     with open(FIXTURE_FILE_PATH, "rb") as f:

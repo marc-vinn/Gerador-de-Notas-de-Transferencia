@@ -9,14 +9,14 @@ def test_generate_nfe_xml_structure():
     p2 = Product(code="PM068", description="ALIMENTADOR INTERNO", quantity=5, unit_price=30.0, total_price=150.0)
     report = TransferReport(filename="test.xls", products=[p1, p2])
 
-    xml_str = NFeGenerator.generate_xml(report, n_nf=50624)
+    xml_str = NFeGenerator.generate_xml(report)
     
     assert "<nfeProc" in xml_str
     assert "ARBORETHO IMPORTS LTDA" in xml_str
     assert "40484774000150" in xml_str
     assert "BUD-17-1-1" in xml_str
     assert "PM068" in xml_str
-    assert "50624" in xml_str
+    assert "<nNF>0</nNF>" in xml_str
 
     root = ET.fromstring(xml_str)
     ns = {"nfe": "http://www.portalfiscal.inf.br/nfe"}

@@ -172,7 +172,12 @@ def generate_xml_endpoint():
         # Extract optional custom recipient from request form or json
         recipient = extract_recipient_from_request(merged_params)
 
-        xml_content = NFeGenerator.generate_xml(report, recipient=recipient)
+        # Extract optional n_nf (defaults to 0 for auto-fill in ERP)
+        n_nf = 0
+        if "n_nf" in merged_params and str(merged_params["n_nf"]).isdigit():
+            n_nf = int(merged_params["n_nf"])
+
+        xml_content = NFeGenerator.generate_xml(report, recipient=recipient, n_nf=n_nf)
 
         clean_filename = re.sub(r"[^\w\.-]", "_", report.filename)
         return Response(

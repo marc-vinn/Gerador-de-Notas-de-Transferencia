@@ -47,7 +47,7 @@ class NFeGenerator:
         report: TransferReport,
         emitter: CompanyInfo = DEFAULT_EMITTER,
         recipient: CompanyInfo = DEFAULT_RECIPIENT,
-        n_nf: int = 50624,
+        n_nf: int = 0,
         serie: int = 1
     ) -> str:
         """
