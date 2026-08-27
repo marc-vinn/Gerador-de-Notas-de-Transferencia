@@ -645,3 +645,53 @@ tr:hover td {
 .hidden {
   display: none !important;
 }
+
+/* Bookmark Radio Button */
+.btn-bookmark-row {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(99, 102, 241, 0.4);
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.6);
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.btn-bookmark-row:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+  transform: scale(1.15);
+}
+
+.btn-bookmark-row:checked {
+  border-color: #a78bfa;
+  background: radial-gradient(circle, #a78bfa 40%, rgba(99, 102, 241, 0.2) 60%);
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.5);
+}
+
+/* Bookmarked (selected) row highlight */
+tr.row-bookmarked td {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-bottom-color: rgba(99, 102, 241, 0.25);
+}
+
+tr.row-bookmarked td:first-child {
+  box-shadow: inset 3px 0 0 0 #a78bfa;
+}
+
+tr.row-bookmarked .badge-sku {
+  background: rgba(167, 139, 250, 0.25);
+  color: #c4b5fd;
+}
+
+/* Alert info style */
+.alert-info {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #7dd3fc;
+}

@@ -29,8 +29,14 @@ def test_transfer_report_totals():
     assert report.total_value == 90.0
     assert report.total_freight == 7.0
 
-def test_default_company_info():
-    company = DEFAULT_EMITTER
-    assert company.cnpj == "40484774000150"
-    assert company.name == "ARBORETHO IMPORTS LTDA"
-    assert company.ie == "108282910"
+def test_default_company_info_empty_without_env():
+    """Without environment variables, all company fields default to empty strings."""
+    company = CompanyInfo()
+    assert company.cnpj == ""
+    assert company.name == ""
+    assert company.ie == ""
+    assert company.crt == ""
+    assert company.address.street == ""
+    # country_code and country_name have universal defaults
+    assert company.address.country_code == "1058"
+    assert company.address.country_name == "Brasil"

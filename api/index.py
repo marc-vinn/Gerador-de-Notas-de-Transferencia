@@ -149,10 +149,10 @@ def generate_xml_endpoint():
                     unit_price=u_price,
                     total_price=tot_price,
                     freight_price=float(p_dict.get("freight_price", 0.0)),
-                    ean=str(p_dict.get("ean", "SEM GTIN")),
-                    ncm=str(p_dict.get("ncm", "63023100")),
-                    cfop=str(p_dict.get("cfop", "5152")),
-                    unit=str(p_dict.get("unit", "PC"))
+                    ean=str(p_dict.get("ean", "")),
+                    ncm=str(p_dict.get("ncm", "")),
+                    cfop=str(p_dict.get("cfop", "")),
+                    unit=str(p_dict.get("unit", ""))
                 ))
             
             if not filename:
@@ -172,9 +172,9 @@ def generate_xml_endpoint():
         # Extract optional custom recipient from request form or json
         recipient = extract_recipient_from_request(merged_params)
 
-        # Extract optional n_nf (defaults to 0 for auto-fill in ERP)
-        n_nf = 0
-        if "n_nf" in merged_params and str(merged_params["n_nf"]).isdigit():
+        # Extract optional n_nf (defaults to None so ERP assigns a new number)
+        n_nf = None
+        if "n_nf" in merged_params and str(merged_params["n_nf"]).strip().isdigit():
             n_nf = int(merged_params["n_nf"])
 
         xml_content = NFeGenerator.generate_xml(report, recipient=recipient, n_nf=n_nf)

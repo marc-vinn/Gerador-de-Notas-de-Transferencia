@@ -49,6 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const RECIPIENT_STORAGE_KEY = "arboretho_transfer_recipient";
   const PRODUCTS_STORAGE_KEY = "arboretho_transfer_products";
   const FILENAME_STORAGE_KEY = "arboretho_transfer_filename";
+  const BOOKMARK_STORAGE_KEY = "arboretho_transfer_bookmark";
 
   // --- Recipient Storage Handlers ---
   function getStoredRecipient() {
@@ -110,6 +111,46 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {
       console.warn("Product cache clear error:", e);
     }
+  }
+
+  // --- Bookmark (Marcador) Storage Handlers ---
+  function getStoredBookmark() {
+    try {
+      return localStorage.getItem(BOOKMARK_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  function saveBookmark(productCode) {
+    try {
+      localStorage.setItem(BOOKMARK_STORAGE_KEY, String(productCode));
+    } catch (e) {
+      console.warn("Bookmark storage error:", e);
+    }
+  }
+
+  function clearBookmark() {
+    try {
+      localStorage.removeItem(BOOKMARK_STORAGE_KEY);
+    } catch (e) {
+      console.warn("Bookmark clear error:", e);
+    }
+  }
+
+  function applyBookmarkHighlight() {
+    const storedCode = getStoredBookmark();
+    const rows = productsTableBody.querySelectorAll("tr");
+    rows.forEach(row => {
+      const radio = row.querySelector(".btn-bookmark-row");
+      if (radio && radio.dataset.code === String(storedCode)) {
+        radio.checked = true;
+        row.classList.add("row-bookmarked");
+      } else {
+        if (radio) radio.checked = false;
+        row.classList.remove("row-bookmarked");
+      }
+    });
   }
 
   function updateBadgeUI() {
@@ -384,6 +425,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Reset product cache for the new file (preserving recipient settings)
     clearStoredProducts();
+    clearBookmark();
 
     const formData = new FormData();
     formData.append("file", file);
@@ -430,6 +472,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const tr = document.createElement("tr");
 
       tr.innerHTML = `
+        <td style="text-align: center;">
+          <input type="radio" name="bookmarkRow" class="btn-bookmark-row" data-code="${p.code}" title="Marcar posição aqui">
+        </td>
         <td style="color: var(--text-muted); font-size: 0.8rem;">${idx + 1}</td>
         <td>
           <div class="sku-container">
@@ -454,6 +499,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       productsTableBody.appendChild(tr);
     });
+
+    // Restore bookmark highlight after rendering
+    applyBookmarkHighlight();
   }
 
   // --- Event Delegation for Inline Editing, Copying SKU & Deleting Rows ---
@@ -494,6 +542,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   productsTableBody.addEventListener("click", (e) => {
+    // Bookmark radio button functionality
+    const radio = e.target.closest(".btn-bookmark-row");
+    if (radio) {
+      const code = radio.dataset.code;
+      saveBookmark(code);
+      applyBookmarkHighlight();
+      return;
+    }
+
     // Copy SKU functionality
     const copyBtn = e.target.closest(".btn-copy-sku");
     if (copyBtn) {
@@ -520,6 +577,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const idx = parseInt(deleteBtn.dataset.idx, 10);
     if (isNaN(idx) || idx < 0 || idx >= parsedProducts.length) return;
+
+    // If the deleted product was bookmarked, clear the bookmark
+    const deletedCode = parsedProducts[idx].code;
+    if (String(getStoredBookmark()) === String(deletedCode)) {
+      clearBookmark();
+    }
 
     // Delete item from parsed products array
     parsedProducts.splice(idx, 1);

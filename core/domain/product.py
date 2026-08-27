@@ -12,10 +12,10 @@ class Product:
     unit_price: float
     total_price: float
     freight_price: float = 0.0
-    ean: str = "SEM GTIN"
-    ncm: str = "63023100"
-    cfop: str = "5152"
-    unit: str = "PC"
+    ean: str = ""
+    ncm: str = ""
+    cfop: str = ""
+    unit: str = ""
 
     def __post_init__(self):
         self.code = str(self.code).strip()

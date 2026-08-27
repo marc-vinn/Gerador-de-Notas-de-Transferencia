@@ -47,11 +47,13 @@ class NFeGenerator:
         report: TransferReport,
         emitter: CompanyInfo = DEFAULT_EMITTER,
         recipient: CompanyInfo = DEFAULT_RECIPIENT,
-        n_nf: int = 0,
+        n_nf: Optional[int] = None,
         serie: int = 1
     ) -> str:
         """
         Generates standard formatted NFe 4.00 XML string.
+        When n_nf is None (default), the number and access key fields are left
+        empty so the ERP can assign its own number and recalculate the key.
         """
         now = datetime.now(timezone(timedelta(hours=-3)))
         dh_emi = now.strftime("%Y-%m-%dT%H:%M:%S-03:00")
@@ -59,16 +61,22 @@ class NFeGenerator:
         date_aamm = now.strftime("%y%m")
 
         cnf = str(random.randint(10000000, 99999999))
-        ch_nfe, cdv = cls._generate_access_key(
-            uf="52",
-            date_str=date_aamm,
-            cnpj=emitter.cnpj,
-            mod="55",
-            serie=str(serie),
-            number=str(n_nf),
-            tp_emis="1",
-            cnf=cnf
-        )
+
+        # Only compute access key when a real NFe number is provided
+        if n_nf is not None:
+            ch_nfe, cdv = cls._generate_access_key(
+                uf="52",
+                date_str=date_aamm,
+                cnpj=emitter.cnpj,
+                mod="55",
+                serie=str(serie),
+                number=str(n_nf),
+                tp_emis="1",
+                cnf=cnf
+            )
+        else:
+            ch_nfe = ""
+            cdv = ""
 
         nfe_proc = ET.Element("nfeProc", {
             "xmlns": "http://www.portalfiscal.inf.br/nfe",
@@ -76,10 +84,10 @@ class NFeGenerator:
         })
 
         nfe = ET.SubElement(nfe_proc, "NFe", {"xmlns": "http://www.portalfiscal.inf.br/nfe"})
-        inf_nfe = ET.SubElement(nfe, "infNFe", {
-            "versao": "4.00",
-            "Id": f"NFe{ch_nfe}"
-        })
+        inf_nfe_attrs = {"versao": "4.00"}
+        if ch_nfe:
+            inf_nfe_attrs["Id"] = f"NFe{ch_nfe}"
+        inf_nfe = ET.SubElement(nfe, "infNFe", inf_nfe_attrs)
 
         # <ide>
         ide = ET.SubElement(inf_nfe, "ide")
@@ -88,7 +96,7 @@ class NFeGenerator:
         ET.SubElement(ide, "natOp").text = "Transferencia de mercadoria SAIDA"
         ET.SubElement(ide, "mod").text = "55"
         ET.SubElement(ide, "serie").text = str(serie)
-        ET.SubElement(ide, "nNF").text = str(n_nf)
+        ET.SubElement(ide, "nNF").text = str(n_nf) if n_nf is not None else ""
         ET.SubElement(ide, "dhEmi").text = dh_emi
         ET.SubElement(ide, "dhSaiEnt").text = dh_sai
         ET.SubElement(ide, "tpNF").text = "1"
