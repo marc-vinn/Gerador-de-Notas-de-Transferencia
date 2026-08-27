@@ -113,43 +113,52 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- Bookmark (Marcador) Storage Handlers ---
-  function getStoredBookmark() {
+  // --- Checklist (Marcador) Storage Handlers ---
+  function getCheckedCodes() {
     try {
-      return localStorage.getItem(BOOKMARK_STORAGE_KEY);
+      const stored = localStorage.getItem(BOOKMARK_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
     } catch {
-      return null;
+      return [];
     }
   }
 
-  function saveBookmark(productCode) {
+  function saveCheckedCodes(codes) {
     try {
-      localStorage.setItem(BOOKMARK_STORAGE_KEY, String(productCode));
+      localStorage.setItem(BOOKMARK_STORAGE_KEY, JSON.stringify(codes));
     } catch (e) {
-      console.warn("Bookmark storage error:", e);
+      console.warn("Checklist storage error:", e);
     }
+  }
+
+  function toggleChecked(productCode) {
+    const codes = getCheckedCodes();
+    const idx = codes.indexOf(productCode);
+    if (idx === -1) {
+      codes.push(productCode);
+    } else {
+      codes.splice(idx, 1);
+    }
+    saveCheckedCodes(codes);
   }
 
   function clearBookmark() {
     try {
       localStorage.removeItem(BOOKMARK_STORAGE_KEY);
     } catch (e) {
-      console.warn("Bookmark clear error:", e);
+      console.warn("Checklist clear error:", e);
     }
   }
 
   function applyBookmarkHighlight() {
-    const storedCode = getStoredBookmark();
+    const checkedCodes = getCheckedCodes();
     const rows = productsTableBody.querySelectorAll("tr");
     rows.forEach(row => {
-      const radio = row.querySelector(".btn-bookmark-row");
-      if (radio && radio.dataset.code === String(storedCode)) {
-        radio.checked = true;
-        row.classList.add("row-bookmarked");
-      } else {
-        if (radio) radio.checked = false;
-        row.classList.remove("row-bookmarked");
-      }
+      const checkbox = row.querySelector(".btn-bookmark-row");
+      if (!checkbox) return;
+      const isChecked = checkedCodes.includes(checkbox.dataset.code);
+      checkbox.checked = isChecked;
+      row.classList.toggle("row-bookmarked", isChecked);
     });
   }
 
@@ -473,7 +482,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       tr.innerHTML = `
         <td style="text-align: center;">
-          <input type="radio" name="bookmarkRow" class="btn-bookmark-row" data-code="${p.code}" title="Marcar posição aqui">
+          <input type="checkbox" class="btn-bookmark-row" data-code="${p.code}" title="Marcar como conferido">
         </td>
         <td style="color: var(--text-muted); font-size: 0.8rem;">${idx + 1}</td>
         <td>
@@ -542,11 +551,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   productsTableBody.addEventListener("click", (e) => {
-    // Bookmark radio button functionality
-    const radio = e.target.closest(".btn-bookmark-row");
-    if (radio) {
-      const code = radio.dataset.code;
-      saveBookmark(code);
+    // Checklist checkbox functionality
+    const checkbox = e.target.closest(".btn-bookmark-row");
+    if (checkbox) {
+      const code = checkbox.dataset.code;
+      toggleChecked(code);
       applyBookmarkHighlight();
       return;
     }
@@ -578,10 +587,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const idx = parseInt(deleteBtn.dataset.idx, 10);
     if (isNaN(idx) || idx < 0 || idx >= parsedProducts.length) return;
 
-    // If the deleted product was bookmarked, clear the bookmark
+    // Remove deleted product from checklist if it was checked
     const deletedCode = parsedProducts[idx].code;
-    if (String(getStoredBookmark()) === String(deletedCode)) {
-      clearBookmark();
+    const codes = getCheckedCodes();
+    const codeIdx = codes.indexOf(deletedCode);
+    if (codeIdx !== -1) {
+      codes.splice(codeIdx, 1);
+      saveCheckedCodes(codes);
     }
 
     // Delete item from parsed products array

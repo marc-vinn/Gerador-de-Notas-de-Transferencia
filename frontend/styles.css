@@ -646,14 +646,14 @@ tr:hover td {
   display: none !important;
 }
 
-/* Bookmark Radio Button */
+/* Checklist Checkbox */
 .btn-bookmark-row {
   appearance: none;
   -webkit-appearance: none;
   width: 20px;
   height: 20px;
   border: 2px solid rgba(99, 102, 241, 0.4);
-  border-radius: 50%;
+  border-radius: 4px;
   background: rgba(15, 23, 42, 0.6);
   cursor: pointer;
   transition: var(--transition);
@@ -670,8 +670,20 @@ tr:hover td {
 
 .btn-bookmark-row:checked {
   border-color: #a78bfa;
-  background: radial-gradient(circle, #a78bfa 40%, rgba(99, 102, 241, 0.2) 60%);
+  background: rgba(99, 102, 241, 0.25);
   box-shadow: 0 0 12px rgba(167, 139, 250, 0.5);
+}
+
+.btn-bookmark-row:checked::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  font-weight: 700;
+  color: #a78bfa;
+  line-height: 1;
 }
 
 /* Bookmarked (selected) row highlight */
