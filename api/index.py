@@ -2,11 +2,13 @@ import os
 import sys
 import re
 import json
+import traceback
 
 # Ensure project root is on sys.path for direct script execution and Vercel
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from flask import Flask, request, jsonify, Response, send_from_directory
+from werkzeug.exceptions import HTTPException
 from core.services.spreadsheet_parser import SpreadsheetParser
 from core.services.nfe_generator import NFeGenerator
 from core.services.stock_transfer_analyzer import StockTransferAnalyzer
@@ -25,8 +27,8 @@ except ImportError:
 
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
-# Security: Limit maximum payload size to 10MB
-app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+# Security: Limit maximum payload size to 50MB (supporting 4 simultaneous spreadsheet uploads)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 @app.after_request
 def add_security_headers(response):
@@ -280,9 +282,25 @@ def generate_xml_endpoint():
     except Exception as e:
         return jsonify({"success": False, "error": f"Erro na geração do XML: {str(e)}"}), 500
 
-@app.errorhandler(413)
-def request_entity_too_large(error):
-    return jsonify({"success": False, "error": "O arquivo enviado excede o limite máximo permitido de 10MB."}), 413
+@app.errorhandler(HTTPException)
+def handle_http_exception(e):
+    """Ensure all HTTP errors (400, 404, 413, 500, etc.) always return JSON instead of HTML."""
+    msg = e.description or str(e)
+    if e.code == 413:
+        msg = "O tamanho combinado dos arquivos enviados excede o limite máximo permitido de 50MB."
+    return jsonify({
+        "success": False,
+        "error": msg
+    }), e.code
+
+@app.errorhandler(Exception)
+def handle_generic_exception(e):
+    """Catch-all for unhandled exceptions to return JSON instead of HTML."""
+    traceback.print_exc()
+    return jsonify({
+        "success": False,
+        "error": f"Erro interno no servidor: {str(e)}"
+    }), 500
 
 if __name__ == "__main__":
     is_debug = os.getenv("FLASK_DEBUG", "False").lower() in ["true", "1"]

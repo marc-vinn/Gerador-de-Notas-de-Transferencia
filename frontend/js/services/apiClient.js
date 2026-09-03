@@ -6,6 +6,23 @@ import { CONFIG } from "../config.js";
 import { sanitizeDigits } from "../utils/sanitizer.js";
 
 export const ApiClient = {
+  async _parseJsonResponse(res, defaultErrorMsg = "Erro na requisição ao servidor.") {
+    const text = await res.text();
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      // Clean HTML tags if server returned an HTML error page (e.g. 413, 500, 502)
+      const cleanSnippet = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+      throw new Error(cleanSnippet || `Erro no servidor (HTTP ${res.status}): Resposta não reconhecida.`);
+    }
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || defaultErrorMsg);
+    }
+    return data;
+  },
+
   async uploadReport(file) {
     const formData = new FormData();
     formData.append("file", file);
@@ -15,11 +32,7 @@ export const ApiClient = {
       body: formData
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || "Erro ao processar o relatório.");
-    }
-    return data;
+    return await this._parseJsonResponse(res, "Erro ao processar o relatório.");
   },
 
   async analyzeMultiReports(files) {
@@ -34,11 +47,7 @@ export const ApiClient = {
       body: formData
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || "Erro ao processar os 4 relatórios de transferência.");
-    }
-    return data;
+    return await this._parseJsonResponse(res, "Erro ao processar os 4 relatórios de transferência.");
   },
 
   async generateXml(payload) {
@@ -90,8 +99,16 @@ export const ApiClient = {
     });
 
     if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.error || "Erro ao gerar XML da DANFE.");
+      const text = await res.text();
+      let errorMsg = "Erro ao gerar XML da DANFE.";
+      try {
+        const errorData = JSON.parse(text);
+        if (errorData.error) errorMsg = errorData.error;
+      } catch (e) {
+        const cleanSnippet = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        if (cleanSnippet) errorMsg = cleanSnippet;
+      }
+      throw new Error(errorMsg);
     }
 
     return await res.blob();
