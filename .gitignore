@@ -16,9 +16,11 @@ env/
 venv/
 ENV/
 
-# Temporary XML / Output files
+# Temporary XML / Output files / Scratch
 danfe_transferencia_gerada.xml
 *.tmp
+scratch/
+Teste_com_exemplo_real/
 
 # IDEs & System files
 .vscode/
@@ -28,3 +30,12 @@ Thumbs.db
 
 # Deployment builds
 .vercel
+
+# Internal specifications, agent prompts and planning documents
+Project.md
+Refac.md
+new.md
+Changes.md
+agents/
+docs/
+

@@ -1,10 +1,13 @@
 """
-Security and integrity validator for incoming sales report files.
+Security and integrity validator for incoming sales and stock report files.
+Protects against oversized uploads, malicious extensions, invalid magic bytes, and XXE.
+Flexible schema validation accepting both Sales and Stock spreadsheets.
 """
 import io
 import re
 import unicodedata
 import xlrd
+import openpyxl
 
 class ValidationError(Exception):
     """Custom exception raised when document validation fails."""
@@ -16,9 +19,8 @@ class DocumentValidator:
     ZIP_MAGIC = b"PK\x03\x04"
 
     REQUIRED_COLUMN_GROUPS = [
-        ["produto", "descri"],
-        ["codigo", "sku"],
-        ["quant"]
+        ["produto", "descri", "item", "nome", "sku", "codigo", "código"],
+        ["quant", "qtd", "venda", "estoque", "saldo", "fisico", "físico", "unid", "total", "valor"]
     ]
 
     @classmethod
@@ -29,9 +31,19 @@ class DocumentValidator:
         return "".join([c for c in nfkd_form if not unicodedata.combining(c)]).lower().strip()
 
     @classmethod
-    def validate_file(cls, file_bytes: bytes, filename: str) -> bool:
+    def sanitize_text(cls, text: str) -> str:
         """
-        Validates file size, file extension, magic bytes, and XLS column schema.
+        Sanitizes text fields to prevent injection or malicious control characters.
+        """
+        if not text:
+            return ""
+        sanitized = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', str(text))
+        return sanitized.strip()
+
+    @classmethod
+    def validate_file(cls, file_bytes: bytes, filename: str, report_type: str = "any") -> bool:
+        """
+        Validates file size, file extension, magic bytes, and spreadsheet column schema.
         Raises ValidationError if any security or format rule is violated.
         """
         if not file_bytes:
@@ -42,27 +54,35 @@ class DocumentValidator:
                 f"Tamanho do arquivo excede o limite máximo de {cls.MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB."
             )
 
-        ext = filename.lower().split(".")[-1] if "." in filename else ""
+        clean_filename = cls.sanitize_text(filename)
+        ext = clean_filename.lower().split(".")[-1] if "." in clean_filename else ""
         if ext not in ["xls", "xlsx"]:
             raise ValidationError("Formato de arquivo não suportado. Envie um arquivo .xls ou .xlsx.")
 
         # Check binary signature / magic bytes
-        if not (file_bytes.startswith(cls.OLE_MAGIC) or file_bytes.startswith(cls.ZIP_MAGIC)):
-            raise ValidationError("Assinatura binária do arquivo inválida. O arquivo não é uma planilha Excel legítima.")
+        if ext == "xls" and not file_bytes.startswith(cls.OLE_MAGIC):
+            raise ValidationError("Assinatura binária do arquivo .xls inválida. O arquivo não é uma planilha Excel legítima.")
+        elif ext == "xlsx" and not file_bytes.startswith(cls.ZIP_MAGIC):
+            raise ValidationError("Assinatura binária do arquivo .xlsx inválida. O arquivo não é um documento OpenXML legítimo.")
+        elif not (file_bytes.startswith(cls.OLE_MAGIC) or file_bytes.startswith(cls.ZIP_MAGIC)):
+            raise ValidationError("Assinatura binária do arquivo inválida.")
 
-        # Inspect XLS header columns
+        # Inspect headers
         try:
-            workbook = xlrd.open_workbook(
-                file_contents=file_bytes,
-                ignore_workbook_corruption=True
-            )
-            sheet = workbook.sheet_by_index(0)
-
-            if sheet.nrows < 1:
-                raise ValidationError("A planilha está vazia.")
-
-            # Extract header values normalized
-            header_row = [cls.normalize_str(cell) for cell in sheet.row_values(0)]
+            if ext == "xlsx":
+                wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+                sheet = wb.active
+                first_row = next(sheet.iter_rows(values_only=True), None)
+                wb.close()
+                if not first_row:
+                    raise ValidationError("A planilha está vazia.")
+                header_row = [cls.normalize_str(str(cell or "")) for cell in first_row]
+            else:
+                workbook = xlrd.open_workbook(file_contents=file_bytes, ignore_workbook_corruption=True)
+                sheet = workbook.sheet_by_index(0)
+                if sheet.nrows < 1:
+                    raise ValidationError("A planilha está vazia.")
+                header_row = [cls.normalize_str(cell) for cell in sheet.row_values(0)]
 
             for kw_group in cls.REQUIRED_COLUMN_GROUPS:
                 col_found = any(any(kw in h for kw in kw_group) for h in header_row if h)
@@ -76,13 +96,3 @@ class DocumentValidator:
             raise ValidationError(f"Erro ao processar estrutura da planilha Excel: {str(e)}")
 
         return True
-
-    @classmethod
-    def sanitize_text(cls, text: str) -> str:
-        """
-        Sanitizes text fields to prevent injection or malicious control characters.
-        """
-        if not text:
-            return ""
-        sanitized = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', str(text))
-        return sanitized.strip()

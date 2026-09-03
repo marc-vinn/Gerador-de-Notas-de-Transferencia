@@ -3,114 +3,288 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema de Transferência entre Filiais | Arboretho Imports</title>
+  <title>Sistema de Transferência entre Filiais | Gestão Inteligente de Estoque</title>
+  <meta name="description" content="Sistema de análise multi-relatórios de vendas e estoques para cálculo de transferências, geração de DANFE XML e alertas de compra.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
     
-    <!-- Top Header -->
+    <!-- Top Header Bar -->
     <header class="header">
       <div class="header-brand">
-        <h1>Transferência entre Filiais</h1>
-        <p>Geração Segura de DANFE XML a partir do Relatório de Vendas Semanal</p>
+        <h1>Transferência de Mercadorias</h1>
+        <p>Motor de Análise de Estoque e Geração Fiscal de DANFE XML (Opção C)</p>
       </div>
       <div class="header-actions">
-        <div class="company-badge" id="destBadge">
+        <div class="company-badge" id="destBadge" title="Status da empresa destinatária configurada">
           <span>Destinatária:</span>
           <strong id="destBadgeName">Não configurada (Clique para cadastrar)</strong>
         </div>
-        <button id="btnOpenModal" class="btn-secondary">
+        <button id="btnOpenModal" class="btn-secondary" title="Configurar empresa destinatária">
           🏢 Cadastrar Destinatária
+        </button>
+        <button id="btnPurgeSession" class="btn-outline-danger" title="Limpar sessão e reiniciar análise">
+          🧹 Limpar Sessão
         </button>
       </div>
     </header>
 
-    <!-- Alert Message Area -->
-    <div id="alertBox" class="alert hidden"></div>
+    <!-- Alert Notification Box -->
+    <div id="alertBox" class="alert hidden" role="alert"></div>
 
-    <!-- Upload Card -->
-    <section class="upload-card" id="dropZone">
-      <input type="file" id="fileInput" accept=".xls,.xlsx">
-      <div class="upload-icon">
-        <svg viewBox="0 0 24 24">
-          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
-        </svg>
+    <!-- Barra Compacta do Assistente de Importação (Exibida após análise concluída) -->
+    <div id="wizardSummaryBar" class="wizard-compact-bar hidden" role="region" aria-label="Resumo do Assistente de Importação">
+      <div class="wizard-compact-info">
+        <span class="wizard-compact-badge">✅ Relatórios Processados</span>
+        <span id="wizardSummaryDetails" class="wizard-compact-text">4 planilhas analisadas com sucesso</span>
       </div>
-      <h2 class="upload-title">Selecione ou Arraste o Relatório de Vendas (.XLS)</h2>
-      <p class="upload-subtitle">Envie a planilha semanal emitida pela filial para analisar os produtos e gerar o XML da DANFE</p>
+      <div class="wizard-compact-actions">
+        <button type="button" id="btnToggleWizard" class="btn-secondary btn-sm" title="Reexibir assistente completo">
+          👁️ Reexibir Assistente
+        </button>
+      </div>
+    </div>
+
+    <!-- Wizard de Carregamento em 4 Etapas (Design Flat Minimalista) -->
+    <section class="wizard-card" id="uploadWizard" aria-label="Assistente de Carregamento de Relatórios">
+      <div class="wizard-header">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+          <div>
+            <div class="wizard-step-badge">Assistente de Importação</div>
+            <h2 id="wizardStepTitle" class="wizard-title">1. Vendas da Semana (Filial)</h2>
+            <p id="wizardStepSubtitle" class="wizard-subtitle">Selecione a planilha com o histórico de vendas semanais da filial</p>
+          </div>
+          <button type="button" id="btnMinimizeWizard" class="btn-outline btn-sm hidden" title="Ocultar assistente para focar nos produtos">
+            Ocultar Assistente ▲
+          </button>
+        </div>
+      </div>
+
+      <!-- Dropzone de Arquivo -->
+      <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="Selecionar arquivo para upload">
+        <input type="file" id="wizardFileInput" accept=".xls,.xlsx" class="file-input-hidden">
+        
+        <div class="drop-zone-content">
+          <div class="drop-icon">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+          </div>
+          <span class="drop-label">Clique para selecionar ou arraste o arquivo aqui</span>
+          <span class="drop-hint">Formatos suportados: .XLS ou .XLSX (máximo 10MB)</span>
+        </div>
+
+        <!-- Card de Arquivo Selecionado -->
+        <div id="wizardFileInfo" class="file-info-card hidden">
+          <div class="file-info-details">
+            <div class="file-info-icon">📄</div>
+            <div class="file-info-text">
+              <strong id="wizardFileName" class="file-name">relatorio.xls</strong>
+              <span id="wizardFileSize" class="file-size">128 KB • Pronto</span>
+            </div>
+          </div>
+          <button type="button" id="btnRemoveWizardFile" class="btn-remove-file" title="Remover arquivo selecionado">✕</button>
+        </div>
+      </div>
+
+      <!-- Controles de Navegação do Wizard -->
+      <div class="wizard-actions">
+        <button type="button" id="btnWizardPrev" class="btn-outline">
+          ← Voltar Etapa
+        </button>
+        
+        <button type="button" id="btnWizardNext" class="btn-primary btn-wizard-action" disabled>
+          Próxima Etapa →
+        </button>
+      </div>
+
+      <!-- Stepper Inferior com 4 Indicadores -->
+      <div class="wizard-stepper">
+        <div class="stepper-dot active" data-step="1" title="1. Vendas Filial">
+          <span>1</span>
+        </div>
+        <div class="stepper-line"></div>
+        <div class="stepper-dot" data-step="2" title="2. Estoque Filial">
+          <span>2</span>
+        </div>
+        <div class="stepper-line"></div>
+        <div class="stepper-dot" data-step="3" title="3. Vendas Matriz">
+          <span>3</span>
+        </div>
+        <div class="stepper-line"></div>
+        <div class="stepper-dot" data-step="4" title="4. Estoque Matriz">
+          <span>4</span>
+        </div>
+      </div>
     </section>
 
-    <!-- Metrics Dashboard (Shown after upload) -->
-    <section id="metricsGrid" class="metrics-grid hidden">
+    <!-- Metrics Dashboard (Shown after analysis) -->
+    <section id="metricsGrid" class="metrics-grid hidden" aria-label="Métricas Consolidadas">
       <div class="metric-card">
-        <span class="metric-label">Arquivo Carregado</span>
-        <span class="metric-value" id="metricFilename" style="font-size: 1.25rem; font-weight: 600;">-</span>
+        <span class="metric-label">Arquivo Principal</span>
+        <span class="metric-value" id="metricFilename" style="font-size: 1.15rem; font-weight: 600;">-</span>
       </div>
       <div class="metric-card">
-        <span class="metric-label">Total de Itens</span>
-        <span class="metric-value" id="metricItemCount">0</span>
+        <span class="metric-label">Itens Aprovados</span>
+        <span class="metric-value" id="metricItemCount" style="color: #60a5fa;">0</span>
       </div>
       <div class="metric-card">
-        <span class="metric-label">Quantidade de Peças</span>
+        <span class="metric-label">Peças a Transferir</span>
         <span class="metric-value" id="metricTotalQty">0</span>
       </div>
       <div class="metric-card">
         <span class="metric-label">Valor Total (R$)</span>
-        <span class="metric-value" id="metricTotalValue" style="color: #38bdf8;">R$ 0,00</span>
+        <span class="metric-value" id="metricTotalValue" style="color: #34d399;">R$ 0,00</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Alertas de Compra</span>
+        <span class="metric-value" id="metricPurchaseAlerts" style="color: #fbbf24;">0</span>
       </div>
     </section>
 
-    <!-- Products Table Section (Shown after upload) -->
-    <section id="dataSection" class="data-section hidden">
-      <div class="table-controls">
-        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Buscar por código SKU ou descrição...">
-        <button id="btnDownloadXml" class="btn-download">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-          </svg>
-          Baixar XML da DANFE
-        </button>
+    <!-- Results Data Section with 3 Tabs -->
+    <section id="dataSection" class="data-section hidden" aria-label="Resultados da Análise de Transferência">
+      
+      <!-- Tabs Navigation -->
+      <div class="tabs-header">
+        <div class="tabs-nav">
+          <button type="button" id="tabBtnNormal" class="tab-btn active">
+            📦 Transferência Matriz → Filial
+            <span class="tab-badge" id="badgeNormalCount">0</span>
+          </button>
+          
+          <button type="button" id="tabBtnRemoved" class="tab-btn">
+            ⚠️ Produtos Removidos & Alertas
+            <span class="tab-badge badge-warning" id="badgeRemovedCount">0</span>
+          </button>
+          
+          <button type="button" id="tabBtnReverse" class="tab-btn hidden">
+            🔄 Transferência Inversa (Filial → Matriz)
+            <span class="tab-badge badge-success" id="badgeReverseCount">0</span>
+          </button>
+        </div>
+
+        <!-- Search Bar -->
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Filtrar por SKU, descrição ou motivo...">
       </div>
 
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th style="text-align: center; width: 50px;" title="Checklist de conferência">✅</th>
-              <th>#</th>
-              <th>Código (SKU)</th>
-              <th>Descrição do Produto</th>
-              <th>Quantidade</th>
-              <th>Valor Unitário</th>
-              <th>Valor Total</th>
-              <th style="text-align: center; width: 80px;">Ações</th>
-            </tr>
-          </thead>
-          <tbody id="productsTableBody">
-            <!-- Dynamic rows inserted via JavaScript -->
-          </tbody>
-        </table>
+      <!-- Tab Content 1: Transferência Normal (Matriz -> Filial) -->
+      <div id="tabContentNormal" class="tab-pane">
+        <div class="tab-toolbar">
+          <p class="tab-description">Produtos com necessidade de reposição na filial e estoque seguro disponível na matriz.</p>
+          <button id="btnDownloadXmlNormal" class="btn-download">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+            </svg>
+            Baixar XML da DANFE
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align: center; width: 44px;" title="Checklist">✅</th>
+                <th style="width: 44px;">#</th>
+                <th>Código (SKU)</th>
+                <th>Descrição do Produto</th>
+                <th style="text-align: center; width: 110px;">Qtd Transferir</th>
+                <th style="width: 120px;">Valor Unit.</th>
+                <th>Valor Total</th>
+                <th style="text-align: center; width: 60px;">Ação</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyNormal">
+              <!-- Linhas inseridas pelo JavaScript -->
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      <!-- Tab Content 2: Produtos Removidos & Alertas de Compra -->
+      <div id="tabContentRemoved" class="tab-pane hidden">
+        <div class="tab-toolbar">
+          <p class="tab-description">Produtos que não foram incluídos na transferência com a justificativa de auditoria e alertas de compra.</p>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 44px;">#</th>
+                <th>Código (SKU)</th>
+                <th>Descrição do Produto</th>
+                <th>Motivo da Decisão</th>
+                <th style="text-align: center; min-width: 170px;">Filial (Estoque vs Vendas)</th>
+                <th style="text-align: center; min-width: 170px;">Matriz (Estoque vs Vendas)</th>
+                <th style="text-align: center; width: 180px;">Status / Ação</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyRemoved">
+              <!-- Linhas inseridas pelo JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab Content 3: Transferência Inversa Segura (Filial -> Matriz) -->
+      <div id="tabContentReverse" class="tab-pane hidden">
+        <div class="tab-toolbar">
+          <p class="tab-description">Produtos com excedente na filial que podem suprir déficit na matriz sem comprometer o mês da filial.</p>
+          <button id="btnDownloadXmlReverse" class="btn-download btn-download-reverse">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+            </svg>
+            Baixar XML DANFE Inversa (Filial → Matriz)
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align: center; width: 44px;" title="Checklist">✅</th>
+                <th style="width: 44px;">#</th>
+                <th>Código (SKU)</th>
+                <th>Descrição do Produto</th>
+                <th style="text-align: center; width: 110px;">Qtd Transferir</th>
+                <th style="width: 120px;">Valor Unit.</th>
+                <th>Valor Total</th>
+                <th style="text-align: center; width: 60px;">Ação</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyReverse">
+              <!-- Linhas inseridas pelo JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </section>
 
   </div>
 
   <!-- Modal Cadastro da Empresa Destinatária -->
-  <div id="recipientModal" class="modal-overlay hidden">
+  <div id="recipientModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h2>Cadastro da Empresa Destinatária</h2>
-        <button id="btnCloseModal" class="modal-close-btn">&times;</button>
+        <h2 id="modalTitle">Cadastro da Empresa Destinatária (Filial)</h2>
+        <button id="btnCloseModal" class="modal-close-btn" aria-label="Fechar modal">&times;</button>
       </div>
       <p class="modal-subtitle">Digite o CNPJ ou CEP para carregar os dados da empresa automaticamente.</p>
 
-      <div id="modalApiStatus" class="modal-status hidden"></div>
+      <div id="modalApiStatus" class="modal-status hidden" role="status"></div>
       
       <form id="recipientForm" class="form-grid">
         <div class="form-group col-7">
-          <label>CNPJ Destinatária *</label>
-
+          <label for="recipientCnpj">CNPJ Destinatária *</label>
           <div class="input-with-btn">
             <input type="text" id="recipientCnpj" placeholder="00.000.000/0000-00" required>
             <button type="button" id="btnSearchCnpj" class="btn-input-action">🔍 Consultar</button>
@@ -118,22 +292,22 @@
         </div>
 
         <div class="form-group col-5">
-          <label>Inscrição Estadual (IE)</label>
+          <label for="recipientIe">Inscrição Estadual (IE)</label>
           <input type="text" id="recipientIe" placeholder="Digite a IE se houver">
         </div>
 
         <div class="form-group col-8">
-          <label>Razão Social / Nome da Empresa *</label>
+          <label for="recipientName">Razão Social / Nome da Empresa *</label>
           <input type="text" id="recipientName" placeholder="Preenchido automaticamente pelo CNPJ" required>
         </div>
 
         <div class="form-group col-4">
-          <label>Telefone de Contato</label>
+          <label for="recipientPhone">Telefone de Contato</label>
           <input type="text" id="recipientPhone" placeholder="(00) 00000-0000">
         </div>
 
         <div class="form-group col-5">
-          <label>CEP *</label>
+          <label for="recipientCep">CEP *</label>
           <div class="input-with-btn">
             <input type="text" id="recipientCep" placeholder="00000-000" maxlength="9">
             <button type="button" id="btnSearchCep" class="btn-input-action">🔍 CEP</button>
@@ -141,37 +315,37 @@
         </div>
 
         <div class="form-group col-7">
-          <label>Logradouro / Rua</label>
+          <label for="recipientStreet">Logradouro / Rua</label>
           <input type="text" id="recipientStreet" placeholder="Ex: Rua, Avenida, Alameda">
         </div>
 
         <div class="form-group col-4">
-          <label>Número</label>
+          <label for="recipientNumber">Número</label>
           <input type="text" id="recipientNumber" placeholder="Ex: 100">
         </div>
 
         <div class="form-group col-4">
-          <label>Complemento</label>
+          <label for="recipientComplement">Complemento</label>
           <input type="text" id="recipientComplement" placeholder="Ex: Sala, Qd, Lt">
         </div>
 
         <div class="form-group col-4">
-          <label>Bairro</label>
+          <label for="recipientBairro">Bairro</label>
           <input type="text" id="recipientBairro" placeholder="Bairro">
         </div>
 
         <div class="form-group col-6">
-          <label>Município (Cidade)</label>
+          <label for="recipientCityName">Município (Cidade)</label>
           <input type="text" id="recipientCityName" placeholder="Cidade">
         </div>
 
         <div class="form-group col-2">
-          <label>UF</label>
+          <label for="recipientUf">UF</label>
           <input type="text" id="recipientUf" placeholder="UF" maxlength="2">
         </div>
 
         <div class="form-group col-4">
-          <label>Código IBGE Município</label>
+          <label for="recipientCityCode">Código IBGE Município</label>
           <input type="text" id="recipientCityCode" placeholder="Ex: 5208707">
         </div>
 
@@ -186,6 +360,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

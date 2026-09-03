@@ -1,15 +1,19 @@
-"""
-Flask application API for Vercel Serverless Functions and local dev server.
-Enforces security limits, CORS/security headers, custom recipient info, and clean error handling.
-"""
 import os
+import sys
 import re
 import json
+
+# Ensure project root is on sys.path for direct script execution and Vercel
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from flask import Flask, request, jsonify, Response, send_from_directory
-from core.services.xls_parser import XLSParser
+from core.services.spreadsheet_parser import SpreadsheetParser
 from core.services.nfe_generator import NFeGenerator
+from core.services.stock_transfer_analyzer import StockTransferAnalyzer
 from core.services.document_validator import ValidationError
-from core.domain.nfe import CompanyInfo, AddressInfo, DEFAULT_RECIPIENT, DEFAULT_EMITTER
+from core.domain.company import CompanyInfo
+from core.domain.uf import InvalidUFError
+from core.domain.nfe import DEFAULT_EMITTER, DEFAULT_RECIPIENT
 from core.domain.product import Product
 from core.domain.report import TransferReport
 
@@ -20,45 +24,30 @@ app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
 @app.after_request
 def add_security_headers(response):
-    """Applies standard HTTP security headers."""
+    """Applies standard HTTP and CSP security headers."""
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "connect-src 'self' https://brasilapi.com.br https://minhareceita.org https://viacep.com.br; "
+        "img-src 'self' data:; "
+        "script-src 'self' 'unsafe-inline'"
+    )
     return response
 
-def extract_recipient_from_request(form_data) -> CompanyInfo:
-    """Extracts custom recipient company details from form parameters if provided."""
-    cnpj_raw = form_data.get("recipient_cnpj", "").strip()
-    name_raw = form_data.get("recipient_name", "").strip()
+def extract_recipient_from_request(form_data: dict) -> CompanyInfo:
+    """Extracts custom recipient company details from request parameters if provided."""
+    cnpj_raw = form_data.get("recipient_cnpj") or form_data.get("cnpj", "")
+    name_raw = form_data.get("recipient_name") or form_data.get("name", "")
 
-    if not cnpj_raw or not name_raw:
+    if not str(cnpj_raw).strip() or not str(name_raw).strip():
         return DEFAULT_RECIPIENT
 
-    cnpj_clean = re.sub(r"\D", "", cnpj_raw)
-    ie_clean = re.sub(r"\D", "", form_data.get("recipient_ie", "")) or DEFAULT_RECIPIENT.ie
-    cep_clean = re.sub(r"\D", "", form_data.get("recipient_cep", "")) or DEFAULT_RECIPIENT.address.cep
-    phone_clean = re.sub(r"\D", "", form_data.get("recipient_phone", "")) or DEFAULT_RECIPIENT.address.phone
-
-    address = AddressInfo(
-        street=form_data.get("recipient_street", "").strip().upper() or DEFAULT_RECIPIENT.address.street,
-        number=form_data.get("recipient_number", "").strip() or DEFAULT_RECIPIENT.address.number,
-        complement=form_data.get("recipient_complement", "").strip().upper() or DEFAULT_RECIPIENT.address.complement,
-        neighborhood=form_data.get("recipient_bairro", "").strip().upper() or DEFAULT_RECIPIENT.address.neighborhood,
-        city_code=form_data.get("recipient_city_code", "").strip() or DEFAULT_RECIPIENT.address.city_code,
-        city_name=form_data.get("recipient_city_name", "").strip() or DEFAULT_RECIPIENT.address.city_name,
-        uf=form_data.get("recipient_uf", "").strip().upper() or DEFAULT_RECIPIENT.address.uf,
-        cep=cep_clean,
-        phone=phone_clean
-    )
-
-    return CompanyInfo(
-        cnpj=cnpj_clean,
-        name=name_raw.upper(),
-        trade_name=form_data.get("recipient_trade_name", name_raw).strip().upper(),
-        ie=ie_clean,
-        address=address
-    )
+    return CompanyInfo.from_dict(form_data, fallback=DEFAULT_RECIPIENT)
 
 @app.route("/")
 def index():
@@ -72,6 +61,7 @@ def static_files(path):
 
 @app.route("/api/upload", methods=["POST"])
 def upload_report():
+    """Single file upload endpoint (backwards compatible)."""
     if "file" not in request.files:
         return jsonify({"success": False, "error": "Nenhum arquivo enviado."}), 400
 
@@ -81,7 +71,7 @@ def upload_report():
 
     try:
         file_bytes = file.read()
-        report = XLSParser.parse(file_bytes, file.filename)
+        report = SpreadsheetParser.parse(file_bytes, file.filename)
 
         products_json = [
             {
@@ -111,10 +101,51 @@ def upload_report():
             "products": products_json
         })
 
-    except ValidationError as ve:
+    except (ValidationError, InvalidUFError) as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
     except Exception as e:
         return jsonify({"success": False, "error": f"Erro no processamento do arquivo: {str(e)}"}), 500
+
+@app.route("/api/analyze-multi", methods=["POST"])
+def analyze_multi_reports():
+    """
+    Processes 4 spreadsheets simultaneously (Branch Sales, Branch Stock, Matrix Sales, Matrix Stock)
+    and executes Option C Stock Decision Matrix.
+    """
+    required_keys = ["branch_sales", "branch_stock", "matrix_sales", "matrix_stock"]
+    for key in required_keys:
+        if key not in request.files or not request.files[key].filename:
+            return jsonify({
+                "success": False,
+                "error": f"Arquivo obrigatório ausente: {key}. Por favor envie os 4 relatórios no wizard."
+            }), 400
+
+    try:
+        b_sales_file = request.files["branch_sales"]
+        b_stock_file = request.files["branch_stock"]
+        m_sales_file = request.files["matrix_sales"]
+        m_stock_file = request.files["matrix_stock"]
+
+        rep_b_sales = SpreadsheetParser.parse(b_sales_file.read(), b_sales_file.filename)
+        rep_b_stock = SpreadsheetParser.parse_stock_report(b_stock_file.read(), b_stock_file.filename)
+        rep_m_sales = SpreadsheetParser.parse(m_sales_file.read(), m_sales_file.filename)
+        rep_m_stock = SpreadsheetParser.parse_stock_report(m_stock_file.read(), m_stock_file.filename)
+
+        analysis_result = StockTransferAnalyzer.analyze(
+            branch_sales_report=rep_b_sales,
+            branch_stock_report=rep_b_stock,
+            matrix_sales_report=rep_m_sales,
+            matrix_stock_report=rep_m_stock
+        )
+
+        response_payload = analysis_result.to_dict()
+        response_payload["filename"] = b_sales_file.filename
+        return jsonify(response_payload)
+
+    except (ValidationError, InvalidUFError) as ve:
+        return jsonify({"success": False, "error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Erro na análise multi-relatórios: {str(e)}"}), 500
 
 @app.route("/api/generate-xml", methods=["POST"])
 def generate_xml_endpoint():
@@ -125,26 +156,33 @@ def generate_xml_endpoint():
 
         products_json = form_data.get("products") or json_data.get("products")
         filename = form_data.get("filename") or json_data.get("filename")
-        
+        direction = form_data.get("direction") or json_data.get("direction") or "matrix_to_branch"
+
         products = []
-        
+
         if products_json:
             if isinstance(products_json, str):
                 products_list = json.loads(products_json)
             else:
                 products_list = products_json
-                
+
             if not isinstance(products_list, list):
                 return jsonify({"success": False, "error": "Formato de produtos inválido."}), 400
-                
+
             for p_dict in products_list:
                 qty = float(p_dict.get("quantity", 0))
                 u_price = float(p_dict.get("unit_price", 0))
                 tot_price = round(qty * u_price, 2)
-                
+
+                sku = str(p_dict.get("sku") or p_dict.get("code") or "").strip()
+                desc = str(p_dict.get("description") or "").strip()
+
+                if not sku or not desc or qty <= 0:
+                    continue
+
                 products.append(Product(
-                    code=str(p_dict.get("code", "")).strip(),
-                    description=str(p_dict.get("description", "")).strip(),
+                    code=sku,
+                    description=desc,
                     quantity=qty,
                     unit_price=u_price,
                     total_price=tot_price,
@@ -154,41 +192,53 @@ def generate_xml_endpoint():
                     cfop=str(p_dict.get("cfop", "")),
                     unit=str(p_dict.get("unit", ""))
                 ))
-            
+
             if not filename:
-                filename = "relatorio_editado.xls"
+                filename = "relatorio_transferencia.xls"
             report = TransferReport(filename=filename, products=products)
 
         elif "file" in request.files and request.files["file"].filename:
             file = request.files["file"]
             file_bytes = file.read()
-            report = XLSParser.parse(file_bytes, file.filename or "relatorio.xls")
+            report = SpreadsheetParser.parse(file_bytes, file.filename or "relatorio.xls")
         else:
             return jsonify({"success": False, "error": "Nenhum arquivo ou lista de produtos enviada."}), 400
 
         if not report.products:
-            return jsonify({"success": False, "error": "Nenhum produto disponível para exportação na DANFE."}), 400
+            return jsonify({"success": False, "error": "Nenhum produto válido disponível para exportação na DANFE."}), 400
 
-        # Extract optional custom recipient from request form or json
-        recipient = extract_recipient_from_request(merged_params)
+        configured_branch = extract_recipient_from_request(merged_params)
 
-        # Extract optional n_nf (defaults to None so ERP assigns a new number)
         n_nf = None
         if "n_nf" in merged_params and str(merged_params["n_nf"]).strip().isdigit():
             n_nf = int(merged_params["n_nf"])
 
-        xml_content = NFeGenerator.generate_xml(report, recipient=recipient, n_nf=n_nf)
+        # Determine emitter and recipient based on transfer direction
+        if direction == "branch_to_matrix":
+            # Reverse transfer: Branch -> Matrix
+            emitter = configured_branch
+            recipient = DEFAULT_EMITTER
+            prefix = "nfe_transferencia_reversa"
+        else:
+            # Normal transfer: Matrix -> Branch
+            emitter = DEFAULT_EMITTER
+            recipient = configured_branch
+            prefix = "nfe_transferencia"
 
-        clean_filename = re.sub(r"[^\w\.-]", "_", report.filename)
+        xml_content = NFeGenerator.generate_xml(report, emitter=emitter, recipient=recipient, n_nf=n_nf)
+
+        base_name = os.path.basename(report.filename)
+        clean_base = os.path.splitext(base_name)[0]
+        clean_filename = re.sub(r"[^\w\-]", "_", clean_base).strip("_") or "relatorio"
         return Response(
             xml_content,
             mimetype="application/xml",
             headers={
-                "Content-Disposition": f"attachment; filename=nfe_transferencia_{clean_filename}.xml"
+                "Content-Disposition": f"attachment; filename={prefix}_{clean_filename}.xml"
             }
         )
 
-    except ValidationError as ve:
+    except (ValidationError, InvalidUFError) as ve:
         return jsonify({"success": False, "error": str(ve)}), 400
     except Exception as e:
         return jsonify({"success": False, "error": f"Erro na geração do XML: {str(e)}"}), 500
@@ -201,4 +251,3 @@ if __name__ == "__main__":
     is_debug = os.getenv("FLASK_DEBUG", "False").lower() in ["true", "1"]
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=is_debug)
-
