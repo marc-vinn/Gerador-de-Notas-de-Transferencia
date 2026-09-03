@@ -20,13 +20,22 @@
         <p>Motor de Análise de Estoque e Geração Fiscal de DANFE XML (Opção C)</p>
       </div>
       <div class="header-actions">
-        <div class="company-badge" id="destBadge" title="Status da empresa destinatária configurada">
-          <span>Destinatária:</span>
-          <strong id="destBadgeName">Não configurada (Clique para cadastrar)</strong>
+        <div class="company-badge" id="emitterBadge" title="Status da Empresa Emitente (Matriz)">
+          <span>🏢 Matriz:</span>
+          <strong id="emitterBadgeName">Não configurada</strong>
         </div>
-        <button id="btnOpenModal" class="btn-secondary" title="Configurar empresa destinatária">
-          🏢 Cadastrar Destinatária
+        <button id="btnOpenEmitterModal" class="btn-secondary" title="Configurar Empresa Emitente (Matriz)">
+          🏢 Configurar Matriz
         </button>
+
+        <div class="company-badge" id="destBadge" title="Status da Empresa Destinatária (Filial)">
+          <span>🏬 Filial:</span>
+          <strong id="destBadgeName">Não configurada</strong>
+        </div>
+        <button id="btnOpenRecipientModal" class="btn-secondary" title="Configurar Empresa Destinatária (Filial)">
+          🏬 Configurar Filial
+        </button>
+
         <button id="btnPurgeSession" class="btn-outline-danger" title="Limpar sessão e reiniciar análise">
           🧹 Limpar Sessão
         </button>
@@ -271,20 +280,31 @@
 
   </div>
 
-  <!-- Modal Cadastro da Empresa Destinatária -->
+  <!-- Modal Cadastro de Empresas (Matriz & Filial) -->
   <div id="recipientModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-card">
       <div class="modal-header">
-        <h2 id="modalTitle">Cadastro da Empresa Destinatária (Filial)</h2>
+        <h2 id="modalTitle">Cadastro de Empresas para Operação Fiscal</h2>
         <button id="btnCloseModal" class="modal-close-btn" aria-label="Fechar modal">&times;</button>
       </div>
-      <p class="modal-subtitle">Digite o CNPJ ou CEP para carregar os dados da empresa automaticamente.</p>
+
+      <!-- Tabs de Seleção de Empresa: Matriz vs Filial -->
+      <div class="modal-tabs">
+        <button type="button" id="tabCompanyEmitter" class="modal-tab-btn active" data-tab="emitter">
+          🏢 Empresa Emitente (Matriz)
+        </button>
+        <button type="button" id="tabCompanyRecipient" class="modal-tab-btn" data-tab="recipient">
+          🏬 Empresa Destinatária (Filial)
+        </button>
+      </div>
+
+      <p id="modalSubtitle" class="modal-subtitle">Digite o CNPJ ou CEP para carregar os dados da empresa automaticamente.</p>
 
       <div id="modalApiStatus" class="modal-status hidden" role="status"></div>
       
       <form id="recipientForm" class="form-grid">
         <div class="form-group col-7">
-          <label for="recipientCnpj">CNPJ Destinatária *</label>
+          <label for="recipientCnpj" id="lblCnpj">CNPJ *</label>
           <div class="input-with-btn">
             <input type="text" id="recipientCnpj" placeholder="00.000.000/0000-00" required>
             <button type="button" id="btnSearchCnpj" class="btn-input-action">🔍 Consultar</button>
@@ -297,7 +317,7 @@
         </div>
 
         <div class="form-group col-8">
-          <label for="recipientName">Razão Social / Nome da Empresa *</label>
+          <label for="recipientName" id="lblName">Razão Social / Nome da Empresa *</label>
           <input type="text" id="recipientName" placeholder="Preenchido automaticamente pelo CNPJ" required>
         </div>
 
@@ -340,8 +360,8 @@
         </div>
 
         <div class="form-group col-2">
-          <label for="recipientUf">UF</label>
-          <input type="text" id="recipientUf" placeholder="UF" maxlength="2">
+          <label for="recipientUf">UF *</label>
+          <input type="text" id="recipientUf" placeholder="UF" maxlength="2" required>
         </div>
 
         <div class="form-group col-4">
@@ -350,10 +370,10 @@
         </div>
 
         <div class="modal-actions col-12">
-          <button type="button" id="btnResetDefault" class="btn-outline-danger">Limpar Cadastro</button>
+          <button type="button" id="btnResetDefault" class="btn-outline-danger">Limpar Empresa Ativa</button>
           <div style="display: flex; gap: 0.75rem;">
             <button type="button" id="btnCancelModal" class="btn-outline">Cancelar</button>
-            <button type="submit" class="btn-primary">Salvar Empresa Destinatária</button>
+            <button type="submit" id="btnSubmitCompany" class="btn-primary">Salvar Empresa</button>
           </div>
         </div>
       </form>

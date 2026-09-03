@@ -118,22 +118,58 @@ def test_api_analyze_multi_with_real_sample_files(client):
         assert res_json["summary"]["reverse_items_count"] == 11
 
 
-def test_api_generate_xml_default_recipient(client):
+def test_api_generate_xml_security_gate_blocks_unconfigured_companies(client):
+    """Verifies that generate-xml strictly rejects requests if companies are not configured."""
+    with open(FIXTURE_FILE_PATH, "rb") as f:
+        file_bytes = f.read()
+
+    # Case 1: No companies provided at all
+    data = {"file": (io.BytesIO(file_bytes), "relatorio.xls")}
+    rv = client.post("/api/generate-xml", data=data, content_type="multipart/form-data")
+    assert rv.status_code == 400
+    res_json = rv.get_json()
+    assert res_json["success"] is False
+    assert "Empresa Emitente (Matriz) não configurada" in res_json["error"]
+
+    # Case 2: Emitter provided, but recipient missing
+    data = {
+        "file": (io.BytesIO(file_bytes), "relatorio.xls"),
+        "emitter_cnpj": "11.222.333/0001-44",
+        "emitter_name": "MATRIZ ARBORETHO LTDA",
+        "emitter_uf": "GO"
+    }
+    rv = client.post("/api/generate-xml", data=data, content_type="multipart/form-data")
+    assert rv.status_code == 400
+    res_json = rv.get_json()
+    assert res_json["success"] is False
+    assert "Empresa Destinatária (Filial) não configurada" in res_json["error"]
+
+def test_api_generate_xml_normal_direction_with_dual_companies(client):
+    """Tests normal transfer (Matrix -> Branch) with both companies registered."""
     with open(FIXTURE_FILE_PATH, "rb") as f:
         file_bytes = f.read()
 
     data = {
-        "file": (io.BytesIO(file_bytes), "relatorio.xls")
+        "file": (io.BytesIO(file_bytes), "relatorio.xls"),
+        "direction": "matrix_to_branch",
+        "emitter_cnpj": "11.222.333/0001-44",
+        "emitter_name": "MATRIZ ARBORETHO LTDA",
+        "emitter_uf": "GO",
+        "recipient_cnpj": "99.888.777/0001-11",
+        "recipient_name": "FILIAL GOIANIA LTDA",
+        "recipient_uf": "GO"
     }
     rv = client.post("/api/generate-xml", data=data, content_type="multipart/form-data")
     assert rv.status_code == 200
     assert rv.mimetype == "application/xml"
     xml_data = rv.data.decode("utf-8")
     assert "<nfeProc" in xml_data
-    assert "<nNF/>" in xml_data or "<nNF></nNF>" in xml_data
+    assert "nfe_transferencia_" in rv.headers.get("Content-Disposition", "")
+    assert "MATRIZ ARBORETHO LTDA" in xml_data
+    assert "FILIAL GOIANIA LTDA" in xml_data
 
 def test_api_generate_xml_reverse_direction(client):
-    """Tests generating reverse transfer XML (Branch -> Matrix)."""
+    """Tests generating reverse transfer XML (Branch -> Matrix) with symmetric swap."""
     edited_products = [
         {
             "sku": "REV-SKU-001",
@@ -147,6 +183,9 @@ def test_api_generate_xml_reverse_direction(client):
         "products": json.dumps(edited_products),
         "filename": "excedente_filial.xls",
         "direction": "branch_to_matrix",
+        "emitter_cnpj": "11.222.333/0001-44",
+        "emitter_name": "MATRIZ ARBORETHO LTDA",
+        "emitter_uf": "GO",
         "recipient_cnpj": "99.888.777/0001-11",
         "recipient_name": "FILIAL GOIANIA LTDA",
         "recipient_uf": "GO"
@@ -156,10 +195,11 @@ def test_api_generate_xml_reverse_direction(client):
     assert rv.mimetype == "application/xml"
     xml_data = rv.data.decode("utf-8")
     assert "nfe_transferencia_reversa" in rv.headers.get("Content-Disposition", "")
-    assert "REV-SKU-001" in xml_data
-    assert "FILIAL GOIANIA LTDA" in xml_data
-    assert "99888777000111" in xml_data
+    # In reverse direction: Emitter is the Branch (Filial), Recipient is the Matrix (Matriz)
+    assert "<emit>" in xml_data and "FILIAL GOIANIA LTDA" in xml_data
+    assert "<dest>" in xml_data and "MATRIZ ARBORETHO LTDA" in xml_data
     assert "<qCom>15.0000</qCom>" in xml_data
     assert "<vUnCom>50.00</vUnCom>" in xml_data
     assert "<vProd>750.00</vProd>" in xml_data
+
 

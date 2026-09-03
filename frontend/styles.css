@@ -1019,8 +1019,49 @@ tr.row-bookmarked td {
   display: none !important;
 }
 
+/* Modal Dual Company Tabs */
+.modal-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.modal-tab-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--panel-border);
+  color: var(--text-muted);
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.modal-tab-btn:hover {
+  color: #ffffff;
+  border-color: var(--panel-border-hover);
+}
+
+.modal-tab-btn.active {
+  background: var(--primary-subtle);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.company-badge-warning strong {
+  color: #fca5a5 !important;
+}
+
+.company-badge-success strong {
+  color: #86efac !important;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
 

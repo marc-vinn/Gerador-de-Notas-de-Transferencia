@@ -50,10 +50,28 @@ export const ApiClient = {
     formData.append("products", JSON.stringify(payload.products));
     formData.append("direction", payload.direction || "matrix_to_branch");
 
+    if (payload.emitter) {
+      const em = payload.emitter;
+      if (em.cnpj) formData.append("emitter_cnpj", em.cnpj);
+      if (em.name) formData.append("emitter_name", em.name);
+      if (em.tradeName || em.trade_name) formData.append("emitter_trade_name", em.tradeName || em.trade_name);
+      if (em.ie) formData.append("emitter_ie", em.ie);
+      if (em.phone) formData.append("emitter_phone", em.phone);
+      if (em.street) formData.append("emitter_street", em.street);
+      if (em.number) formData.append("emitter_number", em.number);
+      if (em.complement) formData.append("emitter_complement", em.complement);
+      if (em.bairro) formData.append("emitter_bairro", em.bairro);
+      if (em.cityName) formData.append("emitter_city_name", em.cityName);
+      if (em.uf) formData.append("emitter_uf", em.uf);
+      if (em.cep) formData.append("emitter_cep", em.cep);
+      if (em.cityCode) formData.append("emitter_city_code", em.cityCode);
+    }
+
     if (payload.recipient) {
       const r = payload.recipient;
       if (r.cnpj) formData.append("recipient_cnpj", r.cnpj);
       if (r.name) formData.append("recipient_name", r.name);
+      if (r.tradeName || r.trade_name) formData.append("recipient_trade_name", r.tradeName || r.trade_name);
       if (r.ie) formData.append("recipient_ie", r.ie);
       if (r.phone) formData.append("recipient_phone", r.phone);
       if (r.street) formData.append("recipient_street", r.street);

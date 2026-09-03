@@ -536,18 +536,32 @@ export class TableController {
       return;
     }
 
+    const emitter = StorageManager.getEmitter();
+    if (!emitter || !emitter.cnpj || !emitter.name || !emitter.uf) {
+      this.onAlert?.("⚠️ Operação bloqueada: A Empresa Emitente (Matriz) deve estar cadastrada com CNPJ, Razão Social e UF antes de gerar a DANFE XML.", "warning");
+      window.dispatchEvent(new CustomEvent("open-company-modal", { detail: { tab: "emitter" } }));
+      return;
+    }
+
+    const recipient = StorageManager.getRecipient();
+    if (!recipient || !recipient.cnpj || !recipient.name || !recipient.uf) {
+      this.onAlert?.("⚠️ Operação bloqueada: A Empresa Destinatária (Filial) deve estar cadastrada com CNPJ, Razão Social e UF antes de gerar a DANFE XML.", "warning");
+      window.dispatchEvent(new CustomEvent("open-company-modal", { detail: { tab: "recipient" } }));
+      return;
+    }
+
     try {
       if (btn) {
         btn.disabled = true;
         btn.textContent = "Gerando XML...";
       }
 
-      const recipient = StorageManager.getRecipient();
       const baseFilename = this.data.filename || "transferencia.xls";
 
       const blob = await ApiClient.generateXml({
         filename: baseFilename,
         products: products,
+        emitter: emitter,
         recipient: recipient,
         direction: direction
       });

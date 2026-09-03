@@ -5,6 +5,32 @@
 import { CONFIG } from "../config.js";
 
 export const StorageManager = {
+  getEmitter() {
+    try {
+      const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.EMITTER);
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      console.warn("Error reading emitter storage:", e);
+      return null;
+    }
+  },
+
+  saveEmitter(data) {
+    try {
+      localStorage.setItem(CONFIG.STORAGE_KEYS.EMITTER, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Error saving emitter storage:", e);
+    }
+  },
+
+  clearEmitter() {
+    try {
+      localStorage.removeItem(CONFIG.STORAGE_KEYS.EMITTER);
+    } catch (e) {
+      console.warn("Error clearing emitter storage:", e);
+    }
+  },
+
   getRecipient() {
     try {
       const stored = localStorage.getItem(CONFIG.STORAGE_KEYS.RECIPIENT);
@@ -92,11 +118,16 @@ export const StorageManager = {
   },
 
   /**
-   * Purgar todos os dados de sessão e cache do navegador.
+   * Purgar dados de sessão e cache do navegador.
+   * Por padrão preserva o cadastro da Matriz para conveniência do operador,
+   * a menos que purgeEmitter seja explicitamente true.
    */
-  purgeAllSessionData() {
+  purgeAllSessionData(purgeEmitter = false) {
     this.clearCachedProducts();
     this.clearBookmarks();
     this.clearRecipient();
+    if (purgeEmitter) {
+      this.clearEmitter();
+    }
   }
 };

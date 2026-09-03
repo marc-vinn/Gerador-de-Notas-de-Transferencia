@@ -41,10 +41,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Global Event Listener to open company modal on specific tab
+  window.addEventListener("open-company-modal", (e) => {
+    modalController.open(e.detail?.tab || "emitter");
+  });
+
   // Purge Session Action
   btnPurgeSession?.addEventListener("click", () => {
-    if (confirm("Deseja realmente limpar a sessão, reiniciar o wizard e purgar os dados em cache?")) {
-      StorageManager.purgeAllSessionData();
+    if (confirm("Deseja realmente limpar os relatórios e a sessão atual? (O cadastro da Matriz será preservado)")) {
+      StorageManager.purgeAllSessionData(false);
       modalController.updateBadgeUI();
       modalController.fillForm();
       wizardController.reset();
@@ -54,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (dataSection) dataSection.classList.add("hidden");
       if (metricsGrid) metricsGrid.classList.add("hidden");
 
-      showAlert("Sessão limpa e wizard reiniciado com sucesso.", "info");
+      showAlert("Sessão limpa e assistente de importação reiniciado.", "info");
     }
   });
 });

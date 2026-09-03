@@ -106,10 +106,12 @@ Exibe instantaneamente:
    - Visualização e edição inline idêntica à transferência normal (edição de quantidade, preço unitário, total recalculado, checklist e exclusão).
    - Botão dedicado para baixar o XML da DANFE Inversa com emissor e destinatário invertidos de forma automática.
 
-### 4.4 Cadastro e Consulta Automatizada de Empresas
-- Modal integrado com consulta instantânea de dados cadastrais via **BrasilAPI / MinhaReceita** (por CNPJ) e **ViaCEP** (por CEP).
-- Preenchimento automático de Razão Social, Logradouro, Bairro, Município, UF e Código IBGE.
-- Persistência das preferências com isolamento de dados no cliente e botão para purgar a sessão.
+### 4.4 Gestão Bilateral de Empresas (Matriz & Filial) & Trava de Segurança
+- **Configuração Completa das Duas Pontas**: Modal com abas independentes para a **Empresa Emitente (Matriz)** e a **Empresa Destinatária (Filial)**, eliminando qualquer dado fixo no código e tornando o sistema 100% universal para qualquer empresa.
+- **Consulta Automatizada**: Consulta instantânea via **BrasilAPI / MinhaReceita** (por CNPJ) e **ViaCEP** (por CEP), preenchendo automaticamente Razão Social, Logradouro, Bairro, Município, UF e Código IBGE.
+- **Trava de Segurança Fiscal (Duas Camadas)**: A emissão da DANFE XML é estritamente protegida no client-side e server-side; tentativas de download sem os cadastros completos disparam alertas instrutivos e abrem o formulário correspondente.
+- **Permuta Simétrica Perfeita na Nota Reversa**: Na transferência reversa (Filial → Matriz), o sistema permuta os papéis de emitente e destinatário com 100% dos dados fiscais válidos, sem campos vazios ou inconsistências na SEFAZ.
+- **Persistência Inteligente**: A Matriz permanece gravada no navegador local para conveniência nas próximas utilizações, permitindo purgar relatórios e filiais sem perder as configurações da matriz.
 
 ---
 

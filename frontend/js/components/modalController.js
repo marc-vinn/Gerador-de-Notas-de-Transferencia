@@ -1,6 +1,7 @@
 /**
  * Modal Controller Component
- * Manages Recipient configuration modal, CEP/CNPJ searches, and storage synchronization.
+ * Manages Dual Company configuration (Emitter/Matrix and Recipient/Branch),
+ * automatic CEP/CNPJ searches, and storage synchronization.
  */
 import { ApiClient } from "../services/apiClient.js";
 import { StorageManager } from "../services/storageManager.js";
@@ -11,18 +12,33 @@ export class ModalController {
     this.onSave = onSave;
     this.onReset = onReset;
     this.onAlert = onAlert;
+    this.activeTab = "emitter"; // 'emitter' or 'recipient'
 
     this.modal = document.getElementById("recipientModal");
     this.form = document.getElementById("recipientForm");
-    this.destBadgeName = document.getElementById("destBadgeName");
     this.apiStatus = document.getElementById("modalApiStatus");
+    this.modalTitle = document.getElementById("modalTitle");
 
-    this.btnOpen = document.getElementById("btnOpenModal");
+    this.emitterBadgeName = document.getElementById("emitterBadgeName");
+    this.destBadgeName = document.getElementById("destBadgeName");
+    this.emitterBadge = document.getElementById("emitterBadge");
+    this.destBadge = document.getElementById("destBadge");
+
+    this.btnOpenEmitter = document.getElementById("btnOpenEmitterModal");
+    this.btnOpenRecipient = document.getElementById("btnOpenRecipientModal");
+    this.btnLegacyOpen = document.getElementById("btnOpenModal"); // backwards compatibility
+
     this.btnClose = document.getElementById("btnCloseModal");
     this.btnCancel = document.getElementById("btnCancelModal");
     this.btnReset = document.getElementById("btnResetDefault");
+    this.btnSubmit = document.getElementById("btnSubmitCompany");
     this.btnSearchCnpj = document.getElementById("btnSearchCnpj");
     this.btnSearchCep = document.getElementById("btnSearchCep");
+
+    this.tabEmitter = document.getElementById("tabCompanyEmitter");
+    this.tabRecipient = document.getElementById("tabCompanyRecipient");
+    this.lblCnpj = document.getElementById("lblCnpj");
+    this.lblName = document.getElementById("lblName");
 
     this.fields = {
       cnpj: document.getElementById("recipientCnpj"),
@@ -44,7 +60,16 @@ export class ModalController {
   }
 
   initEvents() {
-    this.btnOpen?.addEventListener("click", () => this.open());
+    this.btnOpenEmitter?.addEventListener("click", () => this.open("emitter"));
+    this.btnOpenRecipient?.addEventListener("click", () => this.open("recipient"));
+    this.btnLegacyOpen?.addEventListener("click", () => this.open("recipient"));
+
+    this.emitterBadge?.addEventListener("click", () => this.open("emitter"));
+    this.destBadge?.addEventListener("click", () => this.open("recipient"));
+
+    this.tabEmitter?.addEventListener("click", () => this.switchTab("emitter"));
+    this.tabRecipient?.addEventListener("click", () => this.switchTab("recipient"));
+
     this.btnClose?.addEventListener("click", () => this.close());
     this.btnCancel?.addEventListener("click", () => this.close());
 
@@ -73,6 +98,31 @@ export class ModalController {
     });
   }
 
+  switchTab(targetTab) {
+    this.activeTab = targetTab;
+    this.setStatus("");
+
+    if (targetTab === "emitter") {
+      this.tabEmitter?.classList.add("active");
+      this.tabRecipient?.classList.remove("active");
+      if (this.modalTitle) this.modalTitle.textContent = "Cadastro da Empresa Emitente (Matriz)";
+      if (this.lblCnpj) this.lblCnpj.textContent = "CNPJ Matriz (Emitente) *";
+      if (this.lblName) this.lblName.textContent = "Razão Social / Nome da Matriz *";
+      if (this.btnSubmit) this.btnSubmit.textContent = "Salvar Empresa Emitente (Matriz)";
+      if (this.btnReset) this.btnReset.textContent = "Limpar Matriz";
+    } else {
+      this.tabRecipient?.classList.add("active");
+      this.tabEmitter?.classList.remove("active");
+      if (this.modalTitle) this.modalTitle.textContent = "Cadastro da Empresa Destinatária (Filial)";
+      if (this.lblCnpj) this.lblCnpj.textContent = "CNPJ Filial (Destinatária) *";
+      if (this.lblName) this.lblName.textContent = "Razão Social / Nome da Filial *";
+      if (this.btnSubmit) this.btnSubmit.textContent = "Salvar Empresa Destinatária (Filial)";
+      if (this.btnReset) this.btnReset.textContent = "Limpar Filial";
+    }
+
+    this.fillForm();
+  }
+
   setStatus(message, type = "info") {
     if (!this.apiStatus) return;
     if (!message) {
@@ -84,10 +134,14 @@ export class ModalController {
     this.apiStatus.classList.remove("hidden");
   }
 
-  open() {
-    this.setStatus("");
-    this.fillForm();
+  open(tab = null) {
+    if (tab) {
+      this.switchTab(tab);
+    } else {
+      this.switchTab(this.activeTab);
+    }
     this.modal?.classList.remove("hidden");
+    this.fields.cnpj?.focus();
   }
 
   close() {
@@ -95,28 +149,51 @@ export class ModalController {
   }
 
   fillForm() {
-    const recipient = StorageManager.getRecipient() || {};
-    this.fields.cnpj.value = recipient.cnpj || "";
-    this.fields.name.value = recipient.name || "";
-    this.fields.ie.value = recipient.ie || "";
-    this.fields.phone.value = recipient.phone || "";
-    this.fields.street.value = recipient.street || "";
-    this.fields.number.value = recipient.number || "";
-    this.fields.complement.value = recipient.complement || "";
-    this.fields.bairro.value = recipient.bairro || "";
-    this.fields.cityName.value = recipient.cityName || "";
-    this.fields.uf.value = recipient.uf || "";
-    this.fields.cep.value = recipient.cep || "";
-    this.fields.cityCode.value = recipient.cityCode || "";
+    const data = this.activeTab === "emitter" 
+      ? (StorageManager.getEmitter() || {}) 
+      : (StorageManager.getRecipient() || {});
+
+    this.fields.cnpj.value = data.cnpj || "";
+    this.fields.name.value = data.name || "";
+    this.fields.ie.value = data.ie || "";
+    this.fields.phone.value = data.phone || "";
+    this.fields.street.value = data.street || "";
+    this.fields.number.value = data.number || "";
+    this.fields.complement.value = data.complement || "";
+    this.fields.bairro.value = data.bairro || "";
+    this.fields.cityName.value = data.cityName || "";
+    this.fields.uf.value = data.uf || "";
+    this.fields.cep.value = data.cep || "";
+    this.fields.cityCode.value = data.cityCode || "";
   }
 
   updateBadgeUI() {
+    const emitter = StorageManager.getEmitter();
     const recipient = StorageManager.getRecipient();
+
+    // Emitter (Matriz) badge
+    if (this.emitterBadgeName) {
+      if (emitter && emitter.name && emitter.uf) {
+        this.emitterBadgeName.textContent = `${emitter.name} (${emitter.uf})`;
+        this.emitterBadge?.classList.add("company-badge-success");
+        this.emitterBadge?.classList.remove("company-badge-warning");
+      } else {
+        this.emitterBadgeName.textContent = "Não configurada (Clique para cadastrar)";
+        this.emitterBadge?.classList.add("company-badge-warning");
+        this.emitterBadge?.classList.remove("company-badge-success");
+      }
+    }
+
+    // Recipient (Filial) badge
     if (this.destBadgeName) {
-      if (recipient && recipient.name) {
-        this.destBadgeName.textContent = recipient.name;
+      if (recipient && recipient.name && recipient.uf) {
+        this.destBadgeName.textContent = `${recipient.name} (${recipient.uf})`;
+        this.destBadge?.classList.add("company-badge-success");
+        this.destBadge?.classList.remove("company-badge-warning");
       } else {
         this.destBadgeName.textContent = "Não configurada (Clique para cadastrar)";
+        this.destBadge?.classList.add("company-badge-warning");
+        this.destBadge?.classList.remove("company-badge-success");
       }
     }
   }
@@ -189,30 +266,47 @@ export class ModalController {
       complement: this.fields.complement.value.trim(),
       bairro: this.fields.bairro.value.trim(),
       cityName: this.fields.cityName.value.trim(),
-      uf: this.fields.uf.value.trim(),
+      uf: this.fields.uf.value.trim().toUpperCase(),
       cep: this.fields.cep.value.trim(),
       cityCode: this.fields.cityCode.value.trim()
     };
 
     if (!data.cnpj || !data.name) {
-      alert("Por favor, preencha o CNPJ e a Razão Social da empresa destinatária.");
+      alert("Por favor, preencha o CNPJ e a Razão Social da empresa.");
       return;
     }
 
-    StorageManager.saveRecipient(data);
+    if (!data.uf || data.uf.length !== 2) {
+      alert("A UF (Estado) é obrigatória para operações fiscais da NF-e (2 letras).");
+      this.fields.uf.focus();
+      return;
+    }
+
+    if (this.activeTab === "emitter") {
+      StorageManager.saveEmitter(data);
+      this.onAlert?.(`Empresa Emitente (Matriz) '${data.name}' salva com sucesso!`, "success");
+    } else {
+      StorageManager.saveRecipient(data);
+      this.onAlert?.(`Empresa Destinatária (Filial) '${data.name}' salva com sucesso!`, "success");
+    }
+
     this.updateBadgeUI();
     this.close();
-    this.onAlert?.(`Empresa destinatária '${data.name}' cadastrada com sucesso!`, "success");
-    this.onSave?.(data);
+    this.onSave?.(data, this.activeTab);
   }
 
   handleReset() {
-    StorageManager.clearRecipient();
+    if (this.activeTab === "emitter") {
+      StorageManager.clearEmitter();
+      this.onAlert?.("Cadastro da Matriz limpo.", "success");
+    } else {
+      StorageManager.clearRecipient();
+      this.onAlert?.("Cadastro da Filial limpo.", "success");
+    }
     this.updateBadgeUI();
     this.fillForm();
     this.setStatus("");
     this.close();
-    this.onAlert?.("Cadastro da destinatária limpo.", "success");
-    this.onReset?.();
+    this.onReset?.(this.activeTab);
   }
 }

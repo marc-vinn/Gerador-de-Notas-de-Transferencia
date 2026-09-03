@@ -4,6 +4,7 @@
  */
 export const CONFIG = {
   STORAGE_KEYS: {
+    EMITTER: "nfe_transfer_emitter_v1",
     RECIPIENT: "nfe_transfer_recipient_v1",
     PRODUCTS: "nfe_transfer_products_v1",
     FILENAME: "nfe_transfer_filename_v1",

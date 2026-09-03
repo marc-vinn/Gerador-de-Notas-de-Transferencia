@@ -17,6 +17,12 @@ from core.domain.nfe import DEFAULT_EMITTER, DEFAULT_RECIPIENT
 from core.domain.product import Product
 from core.domain.report import TransferReport
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
 # Security: Limit maximum payload size to 10MB
@@ -39,15 +45,23 @@ def add_security_headers(response):
     )
     return response
 
+def extract_company_from_request(form_data: dict, prefix: str = "recipient") -> Optional[CompanyInfo]:
+    """Extracts company details from request parameters for a given prefix ('emitter' or 'recipient')."""
+    p = f"{prefix}_"
+    cnpj_raw = form_data.get(f"{p}cnpj") or (form_data.get("cnpj", "") if prefix == "recipient" else "")
+    name_raw = form_data.get(f"{p}name") or (form_data.get("name", "") if prefix == "recipient" else "")
+
+    if not str(cnpj_raw or "").strip() or not str(name_raw or "").strip():
+        return None
+
+    return CompanyInfo.from_dict(form_data, prefix=prefix)
+
+
 def extract_recipient_from_request(form_data: dict) -> CompanyInfo:
-    """Extracts custom recipient company details from request parameters if provided."""
-    cnpj_raw = form_data.get("recipient_cnpj") or form_data.get("cnpj", "")
-    name_raw = form_data.get("recipient_name") or form_data.get("name", "")
+    """Extracts custom recipient company details from request parameters (backward compatibility)."""
+    comp = extract_company_from_request(form_data, prefix="recipient")
+    return comp if comp else DEFAULT_RECIPIENT
 
-    if not str(cnpj_raw).strip() or not str(name_raw).strip():
-        return DEFAULT_RECIPIENT
-
-    return CompanyInfo.from_dict(form_data, fallback=DEFAULT_RECIPIENT)
 
 @app.route("/")
 def index():
@@ -207,22 +221,45 @@ def generate_xml_endpoint():
         if not report.products:
             return jsonify({"success": False, "error": "Nenhum produto válido disponível para exportação na DANFE."}), 400
 
-        configured_branch = extract_recipient_from_request(merged_params)
+        # Extract both companies dynamically
+        configured_emitter = extract_company_from_request(merged_params, prefix="emitter")
+        configured_recipient = extract_company_from_request(merged_params, prefix="recipient")
+
+        # Strict Security Gate: Both companies MUST be registered and complete
+        if not configured_emitter:
+            return jsonify({
+                "success": False,
+                "error": "Empresa Emitente (Matriz) não configurada. Por favor, cadastre a Matriz antes de gerar a DANFE XML."
+            }), 400
+
+        is_emit_valid, emit_err = configured_emitter.is_valid_for_nfe(role_label="Empresa Emitente (Matriz)")
+        if not is_emit_valid:
+            return jsonify({"success": False, "error": emit_err}), 400
+
+        if not configured_recipient:
+            return jsonify({
+                "success": False,
+                "error": "Empresa Destinatária (Filial) não configurada. Por favor, cadastre a Filial antes de gerar a DANFE XML."
+            }), 400
+
+        is_dest_valid, dest_err = configured_recipient.is_valid_for_nfe(role_label="Empresa Destinatária (Filial)")
+        if not is_dest_valid:
+            return jsonify({"success": False, "error": dest_err}), 400
 
         n_nf = None
         if "n_nf" in merged_params and str(merged_params["n_nf"]).strip().isdigit():
             n_nf = int(merged_params["n_nf"])
 
-        # Determine emitter and recipient based on transfer direction
+        # Determine emitter and recipient based on transfer direction (Symmetric Swap)
         if direction == "branch_to_matrix":
             # Reverse transfer: Branch -> Matrix
-            emitter = configured_branch
-            recipient = DEFAULT_EMITTER
+            emitter = configured_recipient
+            recipient = configured_emitter
             prefix = "nfe_transferencia_reversa"
         else:
             # Normal transfer: Matrix -> Branch
-            emitter = DEFAULT_EMITTER
-            recipient = configured_branch
+            emitter = configured_emitter
+            recipient = configured_recipient
             prefix = "nfe_transferencia"
 
         xml_content = NFeGenerator.generate_xml(report, emitter=emitter, recipient=recipient, n_nf=n_nf)
