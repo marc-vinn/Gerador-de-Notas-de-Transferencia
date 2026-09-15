@@ -203,3 +203,29 @@ def test_api_generate_xml_reverse_direction(client):
     assert "<vProd>750.00</vProd>" in xml_data
 
 
+def test_api_module_annotations_and_company_extraction():
+    """Ensures all type annotations in api.index resolve cleanly to prevent Vercel runtime crashes."""
+    import inspect
+    import api.index
+    from api.index import extract_company_from_request
+    from core.domain.company import CompanyInfo
+
+    # Must resolve without NameError (especially on Python < 3.14 on Vercel)
+    for name, obj in inspect.getmembers(api.index):
+        if inspect.isfunction(obj):
+            inspect.get_annotations(obj)
+
+    # Validate extract_company_from_request behavior
+    empty_result = extract_company_from_request({})
+    assert empty_result is None
+
+    valid_dict = {
+        "emitter_cnpj": "11.222.333/0001-44",
+        "emitter_name": "EMPRESA TESTE LTDA",
+        "emitter_uf": "SP"
+    }
+    extracted = extract_company_from_request(valid_dict, prefix="emitter")
+    assert isinstance(extracted, CompanyInfo)
+    assert extracted.name == "EMPRESA TESTE LTDA"
+
+

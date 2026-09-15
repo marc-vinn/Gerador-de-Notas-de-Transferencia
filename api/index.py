@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import os
 import sys
 import re
 import json
 import traceback
+from typing import Optional
 
 # Ensure project root is on sys.path for direct script execution and Vercel
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
