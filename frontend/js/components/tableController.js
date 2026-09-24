@@ -94,6 +94,22 @@ export class TableController {
     this.renderAll();
   }
 
+  persistAnalysis() {
+    if (!StorageManager.saveCachedAnalysis(this.data)) {
+      this.onAlert?.("Não foi possível salvar a análise neste navegador. Mantenha esta página aberta para não perder as alterações.", "warning");
+    }
+  }
+
+  reset() {
+    this.data = { approvedNormal: [], removedItems: [], purchaseAlerts: [],
+      approvedReverse: [], summary: {}, filename: "relatorio.xls" };
+    this.activeTab = "normal";
+    if (this.searchInput) this.searchInput.value = "";
+    this.renderAll();
+    this.dataSection?.classList.add("hidden");
+    this.metricsGrid?.classList.add("hidden");
+  }
+
   updateBadges() {
     if (this.badgeNormalCount) this.badgeNormalCount.textContent = this.data.approvedNormal.length;
     if (this.badgeRemovedCount) this.badgeRemovedCount.textContent = this.data.removedItems.length;
@@ -132,6 +148,7 @@ export class TableController {
     if (this.btnDownloadXmlReverse) {
       this.btnDownloadXmlReverse.disabled = this.data.approvedReverse.length === 0;
     }
+    this.persistAnalysis();
   }
 
   switchTab(tab) {
@@ -577,7 +594,7 @@ export class TableController {
       window.URL.revokeObjectURL(url);
       a.remove();
 
-      this.onAlert?.(`XML da DANFE (${isReverse ? 'Filial → Matriz' : 'Matriz → Filial'}) baixado com sucesso!`, "success");
+      this.onAlert?.(`XML de importação (${isReverse ? 'Filial → Matriz' : 'Matriz → Filial'}) baixado. No Tiny, duplique a nota e confira os dados preenchidos antes de emitir.`, "success");
     } catch (err) {
       this.onAlert?.(`Erro ao gerar XML: ${err.message}`, "danger");
     } finally {

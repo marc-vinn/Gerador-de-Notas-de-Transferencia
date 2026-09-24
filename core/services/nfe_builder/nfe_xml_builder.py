@@ -25,7 +25,8 @@ class NFeXmlBuilder:
         self.report = report
         self.emitter = emitter
         self.recipient = recipient
-        self.n_nf = n_nf
+        # Legacy import template: duplicate in Tiny before issuing.
+        self.n_nf = 50624 if n_nf is None else n_nf
         self.serie = serie
 
         # Timezone BRT (-03:00)
@@ -97,7 +98,7 @@ class NFeXmlBuilder:
         ET.SubElement(ender, "cPais").text = self.emitter.address.country_code
         ET.SubElement(ender, "xPais").text = self.emitter.address.country_name
         ET.SubElement(emit, "IE").text = self.emitter.ie
-        ET.SubElement(emit, "CRT").text = self.emitter.crt
+        ET.SubElement(emit, "CRT").text = str(self.emitter.crt or "").strip() or "1"
         return emit
 
     def _build_dest(self, parent: ET.Element) -> ET.Element:
@@ -128,16 +129,16 @@ class NFeXmlBuilder:
             # <prod>
             p_elem = ET.SubElement(det, "prod")
             ET.SubElement(p_elem, "cProd").text = prod.code
-            ET.SubElement(p_elem, "cEAN").text = prod.ean
+            ET.SubElement(p_elem, "cEAN").text = str(prod.ean or "").strip() or "SEM GTIN"
             ET.SubElement(p_elem, "xProd").text = prod.description
-            ET.SubElement(p_elem, "NCM").text = prod.ncm
-            ET.SubElement(p_elem, "CFOP").text = prod.cfop
-            ET.SubElement(p_elem, "uCom").text = prod.unit
+            ET.SubElement(p_elem, "NCM").text = str(prod.ncm or "").strip() or "63023100"
+            ET.SubElement(p_elem, "CFOP").text = str(prod.cfop or "").strip() or "5152"
+            ET.SubElement(p_elem, "uCom").text = str(prod.unit or "").strip() or "PC"
             ET.SubElement(p_elem, "qCom").text = f"{prod.quantity:.4f}"
             ET.SubElement(p_elem, "vUnCom").text = f"{prod.unit_price:.2f}"
             ET.SubElement(p_elem, "vProd").text = f"{prod.total_price:.2f}"
-            ET.SubElement(p_elem, "cEANTrib").text = prod.ean
-            ET.SubElement(p_elem, "uTrib").text = prod.unit
+            ET.SubElement(p_elem, "cEANTrib").text = str(prod.ean or "").strip() or "SEM GTIN"
+            ET.SubElement(p_elem, "uTrib").text = str(prod.unit or "").strip() or "PC"
             ET.SubElement(p_elem, "qTrib").text = f"{prod.quantity:.4f}"
             ET.SubElement(p_elem, "vUnTrib").text = f"{prod.unit_price:.2f}"
             ET.SubElement(p_elem, "indTot").text = "1"

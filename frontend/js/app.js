@@ -35,11 +35,25 @@ document.addEventListener("DOMContentLoaded", () => {
   const wizardController = new WizardController({
     onAlert: showAlert,
     onAnalysisComplete: (result, files) => {
+      wizardController.restoredFilename = null;
       const filename = files.branchSales?.name || "relatorio_transferencia.xls";
       tableController.setAnalysisResult(result, filename);
       wizardController.collapse();
     }
   });
+
+  const cachedAnalysis = StorageManager.getCachedAnalysis();
+  if (cachedAnalysis) {
+    tableController.setAnalysisResult({
+      approved_normal: cachedAnalysis.approvedNormal,
+      removed_items: cachedAnalysis.removedItems,
+      purchase_alerts: cachedAnalysis.purchaseAlerts,
+      approved_reverse: cachedAnalysis.approvedReverse,
+      summary: cachedAnalysis.summary
+    }, cachedAnalysis.filename);
+    wizardController.restoredFilename = cachedAnalysis.filename;
+    wizardController.collapse();
+  }
 
   // Global Event Listener to open company modal on specific tab
   window.addEventListener("open-company-modal", (e) => {
@@ -49,7 +63,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // Purge Session Action
   btnPurgeSession?.addEventListener("click", () => {
     if (confirm("Deseja realmente limpar os relatórios e a sessão atual? (O cadastro da Matriz será preservado)")) {
-      StorageManager.purgeAllSessionData(false);
+      if (!StorageManager.purgeAllSessionData(false)) {
+        showAlert("Não foi possível limpar os dados salvos neste navegador.", "warning");
+        return;
+      }
+      tableController.reset();
       modalController.updateBadgeUI();
       modalController.fillForm();
       wizardController.reset();

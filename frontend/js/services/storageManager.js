@@ -57,6 +57,41 @@ export const StorageManager = {
     }
   },
 
+  getCachedAnalysis() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(CONFIG.STORAGE_KEYS.MULTI_ANALYSIS_CACHE));
+      const data = cached?.data;
+      if (cached?.version !== 1 || !data || typeof data.filename !== "string" ||
+          !["approvedNormal", "removedItems", "purchaseAlerts", "approvedReverse"]
+            .every(key => Array.isArray(data[key]) && data[key].every(item => item && typeof item === "object"))) return null;
+      return data;
+    } catch (e) {
+      console.warn("Error reading analysis cache:", e);
+      return null;
+    }
+  },
+
+  saveCachedAnalysis(data) {
+    try {
+      localStorage.setItem(CONFIG.STORAGE_KEYS.MULTI_ANALYSIS_CACHE,
+        JSON.stringify({ version: 1, data }));
+      return true;
+    } catch (e) {
+      console.warn("Error saving analysis cache:", e);
+      return false;
+    }
+  },
+
+  clearCachedAnalysis() {
+    try {
+      localStorage.removeItem(CONFIG.STORAGE_KEYS.MULTI_ANALYSIS_CACHE);
+      return true;
+    } catch (e) {
+      console.warn("Error clearing analysis cache:", e);
+      return false;
+    }
+  },
+
   getCachedProducts() {
     try {
       const p = localStorage.getItem(CONFIG.STORAGE_KEYS.PRODUCTS);
@@ -123,11 +158,13 @@ export const StorageManager = {
    * a menos que purgeEmitter seja explicitamente true.
    */
   purgeAllSessionData(purgeEmitter = false) {
+    if (!this.clearCachedAnalysis()) return false;
     this.clearCachedProducts();
     this.clearBookmarks();
     this.clearRecipient();
     if (purgeEmitter) {
       this.clearEmitter();
     }
+    return true;
   }
 };

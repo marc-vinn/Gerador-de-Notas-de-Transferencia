@@ -20,7 +20,8 @@ class NFeGenerator:
     ) -> str:
         """
         Generates standard formatted NFe 4.00 XML string.
-        When n_nf is None, number and access key fields remain empty for ERP automatic assignment.
+        When n_nf is None, use the legacy import-template number 50624 and generate its key.
+        Import and duplicate this template in Tiny before issuing the actual invoice.
         """
         builder = NFeXmlBuilder(
             report=report,

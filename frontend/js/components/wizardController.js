@@ -268,6 +268,10 @@ export class WizardController {
 
   updateSummaryBar() {
     if (!this.summaryDetails) return;
+    if (this.restoredFilename && !Object.values(this.files).some(Boolean)) {
+      this.summaryDetails.textContent = `Análise recuperada: ${this.restoredFilename}. Para uma nova análise, selecione os 4 relatórios.`;
+      return;
+    }
     const fileCount = Object.values(this.files).filter(Boolean).length;
     const salesFileName = this.files.branchSales?.name || "";
     if (salesFileName) {
@@ -278,6 +282,7 @@ export class WizardController {
   }
 
   reset() {
+    this.restoredFilename = null;
     this.currentStep = 1;
     this.files = {
       branchSales: null,

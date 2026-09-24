@@ -247,3 +247,20 @@ vercel --prod
 
 Desenvolvido por **Marco Vinn**  
 Repositório Oficial: [Gerador-de-Notas-de-Transferencia](https://github.com/marc-vinn/Gerador-de-Notas-de-Transferencia)
+
+### XML de importação no Tiny e recuperação da análise
+
+O XML usa os valores do modelo antigo quando faltam dados: número 50624,
+NCM 63023100, CFOP 5152, EAN SEM GTIN, unidade PC e CRT 1. A chave é
+calculada para os dados da exportação; não há assinatura nem autorização.
+Esse arquivo é um modelo de importação: no Tiny, duplicar a nota importada,
+conferir os dados do cadastro e a nova numeração antes de emitir.
+Valores fiscais já informados são preservados.
+
+Os resultados completos da última análise, inclusive listas normal e reversa,
+removidos, alertas, edições e exclusões, são salvos em localStorage a cada
+alteração e recuperados ao reabrir o mesmo site no mesmo navegador/perfil.
+Os arquivos originais das planilhas não são armazenados: uma nova análise
+exige selecionar os quatro arquivos novamente. Limpar a sessão remove a
+análise salva. Limpar dados do site ou usar navegação privada pode apagar
+essa persistência. Falhas ao salvar são exibidas na tela.

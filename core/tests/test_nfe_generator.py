@@ -31,7 +31,7 @@ TEST_COMPANY = CompanyInfo(
 
 
 def test_generate_nfe_xml_structure():
-    """Default export: nNF must be empty and infNFe must NOT have an Id (access key)."""
+    """Default export keeps the legacy Tiny import-template identity."""
     p1 = Product(code="BUD-17-1-1", description="FRONHA BUDDEMEYER", quantity=10, unit_price=25.0, total_price=250.0)
     p2 = Product(code="PM068", description="ALIMENTADOR INTERNO", quantity=5, unit_price=30.0, total_price=150.0)
     report = TransferReport(filename="test.xls", products=[p1, p2])
@@ -44,21 +44,22 @@ def test_generate_nfe_xml_structure():
     assert "BUD-17-1-1" in xml_str
     assert "PM068" in xml_str
 
-    # nNF must be empty so the ERP assigns a new number
-    assert "<nNF/>" in xml_str or "<nNF></nNF>" in xml_str
+    assert "<nNF>50624</nNF>" in xml_str
 
     root = ET.fromstring(xml_str)
     ns = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
     
-    # infNFe must NOT contain an Id attribute (no access key without a number)
+    # Legacy template includes a consistent access key.
     inf_nfe = root.find(".//nfe:infNFe", ns)
     assert inf_nfe is not None
-    assert "Id" not in inf_nfe.attrib
+    key = inf_nfe.attrib["Id"][3:]
+    assert len(key) == 44
+    assert key[25:34] == "000050624"
 
-    # cDV must be empty
+    # Check digit agrees with the key.
     cdv_elem = root.find(".//nfe:cDV", ns)
     assert cdv_elem is not None
-    assert not cdv_elem.text  # empty or None
+    assert cdv_elem.text == key[-1]
 
     dets = root.findall(".//nfe:det", ns)
     assert len(dets) == 2
