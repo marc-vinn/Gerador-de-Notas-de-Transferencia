@@ -92,6 +92,17 @@ export const StorageManager = {
     }
   },
 
+  clearAnalysisData() {
+    try {
+      for (const key of [CONFIG.STORAGE_KEYS.MULTI_ANALYSIS_CACHE, CONFIG.STORAGE_KEYS.PRODUCTS,
+        CONFIG.STORAGE_KEYS.FILENAME, CONFIG.STORAGE_KEYS.BOOKMARK]) localStorage.removeItem(key);
+      return true;
+    } catch (e) {
+      console.warn("Error clearing analysis:", e);
+      return false;
+    }
+  },
+
   getCachedProducts() {
     try {
       const p = localStorage.getItem(CONFIG.STORAGE_KEYS.PRODUCTS);

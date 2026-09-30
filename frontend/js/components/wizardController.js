@@ -7,8 +7,12 @@ import { ApiClient } from "../services/apiClient.js";
 import { escapeHtml } from "../utils/sanitizer.js";
 
 export class WizardController {
-  constructor({ onAnalysisComplete, onAlert }) {
+  constructor({ onAnalysisComplete, onAnalysisStart, onAnalysisError, onAlert }) {
     this.onAnalysisComplete = onAnalysisComplete;
+    this.onAnalysisStart = onAnalysisStart;
+    this.onAnalysisError = onAnalysisError;
+    this.isAnalyzing = false;
+    this.analysisRequest = 0;
     this.onAlert = onAlert;
 
     this.currentStep = 1;
@@ -119,6 +123,7 @@ export class WizardController {
   }
 
   handleFileSelected(file) {
+    if (this.isAnalyzing) return;
     const ext = (file.name.split(".").pop() || "").toLowerCase();
     if (!CONFIG.SUPPORTED_EXTENSIONS.includes(ext)) {
       this.onAlert?.("Formato não suportado. Envie um arquivo .xls ou .xlsx.", "danger");
@@ -137,6 +142,7 @@ export class WizardController {
   }
 
   removeCurrentFile() {
+    if (this.isAnalyzing) return;
     const currentMeta = this.getCurrentMeta();
     this.files[currentMeta.key] = null;
     if (this.fileInput) this.fileInput.value = "";
@@ -144,6 +150,7 @@ export class WizardController {
   }
 
   prevStep() {
+    if (this.isAnalyzing) return;
     if (this.currentStep > 1) {
       this.currentStep--;
       this.renderStep();
@@ -151,6 +158,7 @@ export class WizardController {
   }
 
   async nextStep() {
+    if (this.isAnalyzing) return;
     const currentMeta = this.getCurrentMeta();
     const currentFile = this.files[currentMeta.key];
 
@@ -168,28 +176,37 @@ export class WizardController {
   }
 
   async runAnalysis() {
+    if (this.isAnalyzing) return;
     if (!this.files.branchSales || !this.files.branchStock || !this.files.matrixSales || !this.files.matrixStock) {
       this.onAlert?.("Todos os 4 relatórios devem ser carregados para processar a análise.", "danger");
       return;
     }
 
+    const request = ++this.analysisRequest;
+    const files = { ...this.files };
+    this.isAnalyzing = true;
+    this.renderStep();
     try {
-      this.btnNext.disabled = true;
-      this.btnNext.textContent = "⏳ Analisando Estoque e Demandas...";
+      this.onAnalysisStart?.();
       this.onAlert?.("Processando os 4 relatórios e cruzando dados de filiais e matriz...", "info");
 
-      const analysisResult = await ApiClient.analyzeMultiReports(this.files);
+      const analysisResult = await ApiClient.analyzeMultiReports(files);
+      if (request !== this.analysisRequest) return;
       this.onAlert?.(
         `Análise concluída com sucesso! ${analysisResult.summary.normal_items_count} itens aprovados para transferência Matriz → Filial.`,
         "success"
       );
-      this.onAnalysisComplete?.(analysisResult, this.files);
+      this.onAnalysisComplete?.(analysisResult, files);
 
     } catch (err) {
-      this.onAlert?.(`Erro na análise: ${err.message}`, "danger");
+      if (request !== this.analysisRequest) return;
+      this.onAnalysisError?.();
+      this.onAlert?.(`Erro na análise: ${err.message} Nenhum resultado desta tentativa foi confirmado. Os resultados anteriores foram ocultados e continuam salvos no navegador.`, "danger");
     } finally {
-      this.btnNext.disabled = false;
-      this.renderStep();
+      if (request === this.analysisRequest) {
+        this.isAnalyzing = false;
+        this.renderStep();
+      }
     }
   }
 
@@ -232,6 +249,15 @@ export class WizardController {
     }
 
     // Stepper Dots Update
+    if (this.fileInput) this.fileInput.disabled = this.isAnalyzing;
+    if (this.btnRemoveFile) this.btnRemoveFile.disabled = this.isAnalyzing;
+    if (this.isAnalyzing) {
+      if (this.btnPrev) this.btnPrev.disabled = true;
+      if (this.btnNext) {
+        this.btnNext.disabled = true;
+        this.btnNext.textContent = "⏳ Analisando Estoque e Demandas...";
+      }
+    }
     this.stepperDots.forEach((dot, index) => {
       const stepNumber = index + 1;
       const hasFile = !!this.files[this.stepsMeta[index].key];
@@ -282,6 +308,8 @@ export class WizardController {
   }
 
   reset() {
+    this.analysisRequest++;
+    this.isAnalyzing = false;
     this.restoredFilename = null;
     this.currentStep = 1;
     this.files = {

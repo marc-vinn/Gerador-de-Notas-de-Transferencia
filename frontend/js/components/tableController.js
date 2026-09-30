@@ -12,6 +12,8 @@ import { ApiClient } from "../services/apiClient.js";
 export class TableController {
   constructor({ onAlert }) {
     this.onAlert = onAlert;
+    this.analysisBlocked = true;
+    this.analysisNotice = document.getElementById("analysisNotice");
 
     // Current active tab ('normal', 'removed', 'reverse')
     this.activeTab = "normal";
@@ -77,13 +79,23 @@ export class TableController {
     this.btnDownloadXmlReverse?.addEventListener("click", () => this.downloadXml("branch_to_matrix"));
   }
 
-  setAnalysisResult(result, filename = "relatorio.xls") {
+  setAnalysisResult(result, filename = "relatorio.xls", completedAt = new Date().toISOString(), recovered = false) {
+    this.analysisBlocked = false;
+    this.data.completedAt = completedAt;
     this.data.approvedNormal = result.approved_normal || [];
     this.data.removedItems = result.removed_items || [];
     this.data.purchaseAlerts = result.purchase_alerts || [];
     this.data.approvedReverse = result.approved_reverse || [];
     this.data.summary = result.summary || {};
     this.data.filename = filename || "relatorio.xls";
+    if (this.analysisNotice) {
+      const date = completedAt ? new Date(completedAt) : null;
+      const when = date && !Number.isNaN(date.getTime()) ? date.toLocaleString("pt-BR") : "data não registrada";
+      this.analysisNotice.textContent = recovered
+        ? "Análise anterior recuperada do navegador (" + when + ") — " + this.data.filename + ". Nenhum relatório novo foi processado nesta abertura."
+        : "Análise concluída em " + when + " — " + this.data.filename + ".";
+      this.analysisNotice.classList.remove("hidden");
+    }
 
     if (this.dataSection) this.dataSection.classList.remove("hidden");
     if (this.metricsGrid) this.metricsGrid.classList.remove("hidden");
@@ -94,6 +106,15 @@ export class TableController {
     this.renderAll();
   }
 
+  suspendAnalysis() {
+    this.analysisBlocked = true;
+    this.dataSection?.classList.add("hidden");
+    this.metricsGrid?.classList.add("hidden");
+    this.analysisNotice?.classList.add("hidden");
+    if (this.btnDownloadXmlNormal) this.btnDownloadXmlNormal.disabled = true;
+    if (this.btnDownloadXmlReverse) this.btnDownloadXmlReverse.disabled = true;
+  }
+
   persistAnalysis() {
     if (!StorageManager.saveCachedAnalysis(this.data)) {
       this.onAlert?.("Não foi possível salvar a análise neste navegador. Mantenha esta página aberta para não perder as alterações.", "warning");
@@ -101,6 +122,7 @@ export class TableController {
   }
 
   reset() {
+    this.suspendAnalysis();
     this.data = { approvedNormal: [], removedItems: [], purchaseAlerts: [],
       approvedReverse: [], summary: {}, filename: "relatorio.xls" };
     this.activeTab = "normal";
@@ -143,10 +165,10 @@ export class TableController {
     }
 
     if (this.btnDownloadXmlNormal) {
-      this.btnDownloadXmlNormal.disabled = this.data.approvedNormal.length === 0;
+      this.btnDownloadXmlNormal.disabled = this.analysisBlocked || this.data.approvedNormal.length === 0;
     }
     if (this.btnDownloadXmlReverse) {
-      this.btnDownloadXmlReverse.disabled = this.data.approvedReverse.length === 0;
+      this.btnDownloadXmlReverse.disabled = this.analysisBlocked || this.data.approvedReverse.length === 0;
     }
     this.persistAnalysis();
   }
@@ -544,6 +566,10 @@ export class TableController {
   }
 
   async downloadXml(direction = "matrix_to_branch") {
+    if (this.analysisBlocked) {
+      this.onAlert?.("Conclua a análise dos relatórios antes de exportar o XML.", "warning");
+      return;
+    }
     const isReverse = direction === "branch_to_matrix";
     const products = isReverse ? this.data.approvedReverse : this.data.approvedNormal;
     const btn = isReverse ? this.btnDownloadXmlReverse : this.btnDownloadXmlNormal;
@@ -599,7 +625,7 @@ export class TableController {
       this.onAlert?.(`Erro ao gerar XML: ${err.message}`, "danger");
     } finally {
       if (btn) {
-        btn.disabled = false;
+        btn.disabled = this.analysisBlocked;
         btn.innerHTML = isReverse ? "Baixar XML DANFE Inversa (Filial → Matriz)" : "Baixar XML da DANFE";
       }
     }

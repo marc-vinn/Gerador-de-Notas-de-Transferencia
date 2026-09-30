@@ -36,6 +36,9 @@
           🏬 Configurar Filial
         </button>
 
+        <button type="button" id="btnClearAnalysis" class="btn-outline-danger" title="Apagar análise e selecionar novos relatórios, preservando as empresas">
+          Apagar análise
+        </button>
         <button id="btnPurgeSession" class="btn-outline-danger" title="Limpar sessão e reiniciar análise">
           🧹 Limpar Sessão
         </button>
@@ -135,6 +138,8 @@
     </section>
 
     <!-- Metrics Dashboard (Shown after analysis) -->
+    <div id="analysisNotice" class="alert alert-info hidden" role="status"></div>
+
     <section id="metricsGrid" class="metrics-grid hidden" aria-label="Métricas Consolidadas">
       <div class="metric-card">
         <span class="metric-label">Arquivo Principal</span>

@@ -42,12 +42,24 @@ export const ApiClient = {
     formData.append("matrix_sales", files.matrixSales);
     formData.append("matrix_stock", files.matrixStock);
 
-    const res = await fetch(CONFIG.ENDPOINTS.ANALYZE_MULTI, {
-      method: "POST",
-      body: formData
-    });
-
-    return await this._parseJsonResponse(res, "Erro ao processar os 4 relatórios de transferência.");
+    try {
+      const res = await fetch(CONFIG.ENDPOINTS.ANALYZE_MULTI, {
+        method: "POST",
+        body: formData
+      });
+      const result = await this._parseJsonResponse(res, "Erro ao processar os 4 relatórios de transferência.");
+      if (!["approved_normal", "approved_reverse", "removed_items", "purchase_alerts"]
+          .every(key => Array.isArray(result[key]) && result[key].every(item => item && typeof item === "object")) ||
+          !result.summary || !Number.isInteger(result.summary.normal_items_count)) {
+        throw new Error("O servidor retornou uma análise incompleta. Tente novamente.");
+      }
+      return result;
+    } catch (err) {
+      if (err instanceof TypeError) {
+        throw new Error("Não foi possível receber a resposta do servidor (falha de conexão). A análise atual não foi confirmada. Verifique a conexão e tente novamente.");
+      }
+      throw err;
+    }
   },
 
   async generateXml(payload) {

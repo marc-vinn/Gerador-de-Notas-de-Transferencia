@@ -34,6 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const wizardController = new WizardController({
     onAlert: showAlert,
+    onAnalysisStart: () => tableController.suspendAnalysis(),
+    onAnalysisError: () => tableController.suspendAnalysis(),
     onAnalysisComplete: (result, files) => {
       wizardController.restoredFilename = null;
       const filename = files.branchSales?.name || "relatorio_transferencia.xls";
@@ -50,7 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
       purchase_alerts: cachedAnalysis.purchaseAlerts,
       approved_reverse: cachedAnalysis.approvedReverse,
       summary: cachedAnalysis.summary
-    }, cachedAnalysis.filename);
+    }, cachedAnalysis.filename, cachedAnalysis.completedAt || null, true);
     wizardController.restoredFilename = cachedAnalysis.filename;
     wizardController.collapse();
   }
@@ -58,6 +60,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // Global Event Listener to open company modal on specific tab
   window.addEventListener("open-company-modal", (e) => {
     modalController.open(e.detail?.tab || "emitter");
+  });
+
+  document.getElementById("btnClearAnalysis")?.addEventListener("click", () => {
+    if (!StorageManager.clearAnalysisData()) {
+      showAlert("Não foi possível apagar a análise salva neste navegador.", "warning");
+      return;
+    }
+    wizardController.reset();
+    tableController.reset();
+    showAlert("Análise apagada. Selecione os quatro relatórios para uma nova análise. Os cadastros das empresas foram preservados.", "info");
   });
 
   // Purge Session Action
